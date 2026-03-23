@@ -31,39 +31,26 @@ import {
   Eye,
   ShieldAlert,
   PlayCircle,
-  BookOpen
+  BookOpen,
+  Home,
+  Wrench
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import { 
-  signInWithPopup, 
-  GoogleAuthProvider, 
-  onAuthStateChanged, 
-  signOut, 
-  User as FirebaseUser 
-} from 'firebase/auth';
-import { 
-  doc, 
-  getDoc, 
-  setDoc, 
-  updateDoc, 
-  collection, 
-  getDocs, 
-  query, 
-  orderBy, 
-  limit,
-  onSnapshot
-} from 'firebase/firestore';
-import { auth, db } from './firebase';
-import { Message, RiskState, PasswordAnalysis, PhishingAnalysis, UserProfile, PublicProfile } from './types';
+import { Message, RiskState, PasswordAnalysis, PhishingAnalysis, UserProfile, PublicProfile, ChatSession } from './types';
 import { analyzePassword, analyzePhishing } from './utils/analyzer';
 import { getCyberResponse, analyzeThreat, ThreatAnalysisResult } from './services/geminiService';
 import { LearningHub } from './components/LearningHub';
 import { SimulationCenter } from './components/SimulationCenter';
 import { SettingsModal } from './components/SettingsModal';
+import { LandingPage } from './components/LandingPage';
+import { Login } from './components/Login';
+import { ChatPanel } from './components/ChatPanel';
 import { BADGE_DEFINITIONS, checkNewBadges } from './utils/badges';
-
+import { auth, db, handleFirestoreError, OperationType } from './firebase';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { doc, setDoc, getDoc, onSnapshot, collection, query, orderBy, limit, deleteDoc } from 'firebase/firestore';
 import { cn } from './utils/cn';
 
 const RiskMeter = ({ score }: { score: number }) => {
@@ -109,9 +96,19 @@ const RiskMeter = ({ score }: { score: number }) => {
   );
 };
 
+interface AppUser {
+  uid: string;
+  email: string | null;
+  displayName: string | null;
+  photoURL: string | null;
+}
+
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'chat' | 'learningHub' | 'leaderboard' | 'profile'>('dashboard');
-  const [user, setUser] = useState<FirebaseUser | null>(null);
+  const [activeTab, setActiveTab] = useState<'home' | 'tools' | 'learningHub' | 'profile' | 'leaderboard'>('home');
+  const [user, setUser] = useState<AppUser | null>(null);
+  const [isGuest, setIsGuest] = useState(false);
+  const [showLogin, setShowLogin] = useState(false);
+  const [showChatPanel, setShowChatPanel] = useState(false);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [publicProfile, setPublicProfile] = useState<PublicProfile | null>(null);
   const [leaderboard, setLeaderboard] = useState<PublicProfile[]>([]);
@@ -121,16 +118,30 @@ export default function App() {
   const [showSimulationCenter, setShowSimulationCenter] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
 
-  const handleSaveSettings = async () => {
-    if (user) {
+  const handleSaveSettings = async (newPrefs: typeof preferences) => {
+    if (user && profile) {
       try {
-        await updateDoc(doc(db, 'users', user.uid), {
-          preferences
-        });
+        await setDoc(doc(db, 'userProfiles', user.uid), { ...profile, preferences: newPrefs }, { merge: true });
         setShowSettingsSaved(true);
         setTimeout(() => setShowSettingsSaved(false), 3000);
-      } catch (e) {
-        console.error("Error saving settings", e);
+      } catch (error) {
+        handleFirestoreError(error, OperationType.UPDATE, 'userProfiles');
+      }
+    }
+  };
+
+  const addRecentActivity = async (title: string, type: 'topic' | 'quiz' | 'simulation' | 'tool') => {
+    if (user) {
+      const newActivity = {
+        id: Date.now().toString(),
+        title,
+        type,
+        timestamp: new Date().toISOString()
+      };
+      try {
+        await setDoc(doc(db, 'users', user.uid, 'recentActivity', newActivity.id), newActivity);
+      } catch (error) {
+        handleFirestoreError(error, OperationType.CREATE, 'recentActivity');
       }
     }
   };
@@ -153,19 +164,24 @@ export default function App() {
     const newBadges = checkNewBadges(newStats, publicProfile.badges);
     
     try {
-      await updateDoc(doc(db, 'public_profiles', user.uid), {
+      addRecentActivity(`Completed: ${topicId.replace(/_/g, ' ')}`, 'topic');
+      
+      const updatedProfile = {
+        ...publicProfile,
         completedTopics: newTopics,
         points: newPoints,
         stats: newStats,
         badges: [...publicProfile.badges, ...newBadges]
-      });
+      };
+      
+      await setDoc(doc(db, 'publicProfiles', user.uid), updatedProfile);
       
       if (newBadges.length > 0) {
         setShowBadgeNotification(newBadges[0]);
         setTimeout(() => setShowBadgeNotification(null), 3000);
       }
-    } catch (e) {
-      console.error("Error completing topic", e);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, 'publicProfiles');
     }
   };
 
@@ -184,18 +200,23 @@ export default function App() {
     const newBadges = checkNewBadges(newStats, publicProfile.badges);
     
     try {
-      await updateDoc(doc(db, 'public_profiles', user.uid), {
+      addRecentActivity(`Passed Quiz: ${topicId.replace(/_/g, ' ')}`, 'quiz');
+      
+      const updatedProfile = {
+        ...publicProfile,
         quizScores: newScores,
         stats: newStats,
         badges: [...publicProfile.badges, ...newBadges]
-      });
+      };
+      
+      await setDoc(doc(db, 'publicProfiles', user.uid), updatedProfile);
       
       if (newBadges.length > 0) {
         setShowBadgeNotification(newBadges[0]);
         setTimeout(() => setShowBadgeNotification(null), 3000);
       }
-    } catch (e) {
-      console.error("Error saving quiz score", e);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, 'publicProfiles');
     }
   };
 
@@ -217,19 +238,24 @@ export default function App() {
     const newBadges = checkNewBadges(newStats, publicProfile.badges);
     
     try {
-      await updateDoc(doc(db, 'public_profiles', user.uid), {
+      addRecentActivity(`Completed Simulation: ${scenarioId.replace(/_/g, ' ')}`, 'simulation');
+      
+      const updatedProfile = {
+        ...publicProfile,
         simulationScores: newScores,
         points: newPoints,
         stats: newStats,
         badges: [...publicProfile.badges, ...newBadges]
-      });
+      };
+      
+      await setDoc(doc(db, 'publicProfiles', user.uid), updatedProfile);
       
       if (newBadges.length > 0) {
         setShowBadgeNotification(newBadges[0]);
         setTimeout(() => setShowBadgeNotification(null), 3000);
       }
-    } catch (e) {
-      console.error("Error saving simulation score", e);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, 'publicProfiles');
     }
   };
 
@@ -238,14 +264,6 @@ export default function App() {
   const [editDisplayName, setEditDisplayName] = useState('');
   const [editPhotoURL, setEditPhotoURL] = useState('');
 
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: '1',
-      role: 'ai',
-      text: "Hello! I am CREDENTIA AI Mentor. How can I help secure your digital life today?",
-      timestamp: new Date()
-    }
-  ]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [riskScore, setRiskScore] = useState(15);
@@ -253,8 +271,11 @@ export default function App() {
 
   // Preferences State
   const [preferences, setPreferences] = useState({
-    notifications: { email: true, push: true, weeklyReport: false },
-    privacy: { publicProfile: true, shareData: false }
+    darkMode: true,
+    highContrast: false,
+    notifications: true,
+    soundEffects: true,
+    hapticFeedback: true
   });
 
   // Analyzers State
@@ -267,148 +288,152 @@ export default function App() {
   const [threatInput, setThreatInput] = useState('');
   const [threatAnalysis, setThreatAnalysis] = useState<ThreatAnalysisResult | null>(null);
   const [isAnalyzingThreat, setIsAnalyzingThreat] = useState(false);
+  const [recentActivity, setRecentActivity] = useState<any[]>([]);
+  const [chatSessions, setChatSessions] = useState<ChatSession[]>([]);
 
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   // Auth & Profile Sync
   useEffect(() => {
-    let unsubscribeUser: (() => void) | undefined;
-    let unsubscribePublic: (() => void) | undefined;
+    let unsubPublicProfile: () => void;
+    let unsubUserProfile: () => void;
+    let unsubChatSessions: () => void;
+    let unsubRecentActivity: () => void;
 
-    const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
-      setUser(firebaseUser);
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
-        // Sync private profile
-        const userDoc = doc(db, 'users', firebaseUser.uid);
-        unsubscribeUser = onSnapshot(userDoc, async (snap) => {
-          if (snap.exists()) {
-            const data = snap.data() as UserProfile;
+        const appUser: AppUser = {
+          uid: firebaseUser.uid,
+          email: firebaseUser.email,
+          displayName: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User',
+          photoURL: firebaseUser.photoURL
+        };
+        
+        setUser(appUser);
+        
+        const defaultStats = {
+          aiQueries: 0,
+          actionsTaken: 0,
+          strongPasswords: 0,
+          phishingDetected: 0,
+          threatsAnalyzed: 0,
+          toolsUsed: [],
+          simulationsCompleted: 0,
+          topicsCompleted: 0,
+          quizzesPassed: 0
+        };
+
+        const defaultPublicProfile: PublicProfile = {
+          uid: firebaseUser.uid,
+          displayName: appUser.displayName || 'User',
+          points: 0,
+          badges: [],
+          photoURL: appUser.photoURL || '',
+          completedTopics: [],
+          quizScores: {},
+          simulationScores: {},
+          stats: defaultStats
+        };
+
+        const defaultUserProfile: UserProfile = {
+          uid: firebaseUser.uid,
+          email: appUser.email || '',
+          riskScore: 15,
+          preferences
+        };
+
+        // Initialize documents if they don't exist
+        try {
+          const publicProfileRef = doc(db, 'publicProfiles', firebaseUser.uid);
+          const publicProfileSnap = await getDoc(publicProfileRef);
+          if (!publicProfileSnap.exists()) {
+            await setDoc(publicProfileRef, defaultPublicProfile);
+          }
+
+          const userProfileRef = doc(db, 'userProfiles', firebaseUser.uid);
+          const userProfileSnap = await getDoc(userProfileRef);
+          if (!userProfileSnap.exists()) {
+            await setDoc(userProfileRef, defaultUserProfile);
+          }
+        } catch (error) {
+          handleFirestoreError(error, OperationType.CREATE, 'profiles');
+        }
+
+        // Listen to Public Profile
+        unsubPublicProfile = onSnapshot(doc(db, 'publicProfiles', firebaseUser.uid), (docSnap) => {
+          if (docSnap.exists()) {
+            const data = docSnap.data() as PublicProfile;
+            setPublicProfile(data);
+            setEditDisplayName(data.displayName);
+            setEditPhotoURL(data.photoURL || '');
+          }
+        }, (error) => handleFirestoreError(error, OperationType.GET, 'publicProfiles'));
+
+        // Listen to User Profile
+        unsubUserProfile = onSnapshot(doc(db, 'userProfiles', firebaseUser.uid), (docSnap) => {
+          if (docSnap.exists()) {
+            const data = docSnap.data() as UserProfile;
             setProfile(data);
-            setRiskScore(data.riskScore || 15);
+            setRiskScore(data.riskScore);
             if (data.preferences) {
               setPreferences(data.preferences);
             }
-          } else {
-            const newProfile: UserProfile = {
-              uid: firebaseUser.uid,
-              email: firebaseUser.email || '',
-              riskScore: 15,
-              preferences
-            };
-            await setDoc(userDoc, newProfile);
-            setProfile(newProfile);
           }
-        }, (error) => {
-          console.error("Error listening to user profile:", error);
-        });
+        }, (error) => handleFirestoreError(error, OperationType.GET, 'userProfiles'));
 
-        // Sync public profile
-        const publicDoc = doc(db, 'public_profiles', firebaseUser.uid);
-        unsubscribePublic = onSnapshot(publicDoc, async (pubSnap) => {
-          if (pubSnap.exists()) {
-            const pubData = pubSnap.data() as PublicProfile;
-            setPublicProfile(pubData);
-            setEditDisplayName(pubData.displayName);
-            setEditPhotoURL(pubData.photoURL || '');
-          } else {
-            const newPubProfile: PublicProfile = {
-              uid: firebaseUser.uid,
-              displayName: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'Cyber Agent',
-              points: 0,
-              badges: [],
-              photoURL: firebaseUser.photoURL || ''
-            };
-            await setDoc(publicDoc, newPubProfile);
-            setPublicProfile(newPubProfile);
-            setEditDisplayName(newPubProfile.displayName);
-            setEditPhotoURL(newPubProfile.photoURL || '');
-          }
-        }, (error) => {
-          console.error("Error listening to public profile:", error);
-        });
+        // Listen to Chat Sessions
+        const chatSessionsQuery = query(collection(db, 'users', firebaseUser.uid, 'chatSessions'), orderBy('updatedAt', 'desc'));
+        unsubChatSessions = onSnapshot(chatSessionsQuery, (snapshot) => {
+          const sessions = snapshot.docs.map(doc => doc.data() as ChatSession);
+          setChatSessions(sessions);
+        }, (error) => handleFirestoreError(error, OperationType.GET, 'chatSessions'));
+
+        // Listen to Recent Activity
+        const recentActivityQuery = query(collection(db, 'users', firebaseUser.uid, 'recentActivity'), orderBy('timestamp', 'desc'), limit(5));
+        unsubRecentActivity = onSnapshot(recentActivityQuery, (snapshot) => {
+          const activities = snapshot.docs.map(doc => doc.data());
+          setRecentActivity(activities);
+        }, (error) => handleFirestoreError(error, OperationType.GET, 'recentActivity'));
+
       } else {
-        if (unsubscribeUser) unsubscribeUser();
-        if (unsubscribePublic) unsubscribePublic();
+        setUser(null);
         setProfile(null);
         setPublicProfile(null);
         setRiskScore(15);
+        setRecentActivity([]);
+        setChatSessions([]);
+        if (unsubPublicProfile) unsubPublicProfile();
+        if (unsubUserProfile) unsubUserProfile();
+        if (unsubChatSessions) unsubChatSessions();
+        if (unsubRecentActivity) unsubRecentActivity();
       }
       setLoading(false);
     });
 
     return () => {
-      unsubscribeAuth();
-      if (unsubscribeUser) unsubscribeUser();
-      if (unsubscribePublic) unsubscribePublic();
+      unsubscribe();
+      if (unsubPublicProfile) unsubPublicProfile();
+      if (unsubUserProfile) unsubUserProfile();
+      if (unsubChatSessions) unsubChatSessions();
+      if (unsubRecentActivity) unsubRecentActivity();
     };
   }, []);
-
-
 
   // Fetch Leaderboard
   useEffect(() => {
     if (activeTab === 'leaderboard') {
-      const fetchLeaderboard = async () => {
-        try {
-          const q = query(collection(db, 'public_profiles'), orderBy('points', 'desc'), limit(10));
-          const snap = await getDocs(q);
-          setLeaderboard(snap.docs.map(doc => doc.data() as PublicProfile));
-        } catch (e) {
-          console.error("Leaderboard fetch error:", e);
-        }
-      };
-      fetchLeaderboard();
+      const q = query(collection(db, 'publicProfiles'), orderBy('points', 'desc'), limit(50));
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        const profiles = snapshot.docs.map(doc => doc.data() as PublicProfile);
+        setLeaderboard(profiles);
+      }, (error) => handleFirestoreError(error, OperationType.GET, 'publicProfiles'));
+      return () => unsubscribe();
     }
-  }, [activeTab, publicProfile?.points]); // Re-fetch if tab changes or user points change
-
-  // Load Chat Messages
-  useEffect(() => {
-    if (!user) {
-      setMessages([
-        {
-          id: '1',
-          role: 'ai',
-          text: "Hello! I am CREDENTIA AI Mentor. How can I help secure your digital life today?",
-          timestamp: new Date()
-        }
-      ]);
-      return;
-    }
-
-    const messagesRef = collection(db, 'users', user.uid, 'messages');
-    const q = query(messagesRef, orderBy('timestamp', 'asc'));
-    
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      if (!snapshot.empty) {
-        const loadedMessages = snapshot.docs.map(doc => {
-          const data = doc.data();
-          return {
-            id: doc.id,
-            role: data.role,
-            text: data.text,
-            timestamp: new Date(data.timestamp)
-          } as Message;
-        });
-        setMessages(loadedMessages);
-      } else {
-        // Save initial greeting if empty
-        const initialMsg = {
-          role: 'ai',
-          text: "Hello! I am CREDENTIA AI Mentor. How can I help secure your digital life today?",
-          timestamp: new Date().toISOString()
-        };
-        setDoc(doc(messagesRef, '1'), initialMsg).catch(console.error);
-      }
-    }, (error) => {
-      console.error("Error loading messages:", error);
-    });
-
-    return () => unsubscribe();
-  }, [user]);
+  }, [activeTab]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isTyping]);
+  }, [isTyping]);
 
   const trackAction = async (pointsToAdd: number, actionType: keyof NonNullable<PublicProfile['stats']>, toolName?: string) => {
     if (!user || !publicProfile) return;
@@ -423,7 +448,10 @@ export default function App() {
       strongPasswords: 0,
       phishingDetected: 0,
       threatsAnalyzed: 0,
-      toolsUsed: []
+      toolsUsed: [],
+      simulationsCompleted: 0,
+      topicsCompleted: 0,
+      quizzesPassed: 0
     };
 
     // Update stats
@@ -448,55 +476,93 @@ export default function App() {
     }
     
     const updatedProfile = { ...publicProfile, points: newPoints, badges: newBadges, stats };
-    setPublicProfile(updatedProfile);
-    
     try {
-      await updateDoc(doc(db, 'public_profiles', user.uid), {
-        points: newPoints,
-        badges: newBadges,
-        stats: stats
-      });
-    } catch (e) {
-      console.error("Error updating points and stats:", e);
+      await setDoc(doc(db, 'publicProfiles', user.uid), updatedProfile);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, 'publicProfiles');
     }
   };
 
   const updateRiskScore = async (newScore: number) => {
-    setRiskScore(newScore);
-    if (user) {
-      try {
-        await updateDoc(doc(db, 'users', user.uid), {
-          riskScore: newScore,
-          lastAnalyzed: new Date().toISOString()
-        });
-      } catch (e) {
-        console.error("Profile update error:", e);
-      }
+    if (!user || !profile) return;
+    try {
+      await setDoc(doc(db, 'userProfiles', user.uid), { ...profile, riskScore: newScore }, { merge: true });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, 'userProfiles');
     }
   };
 
-  const handleLogin = async () => {
-    const provider = new GoogleAuthProvider();
-    try {
-      await signInWithPopup(auth, provider);
-    } catch (e) {
-      console.error("Login error:", e);
-    }
+  const handleLogin = () => {
+    setShowLogin(true);
   };
 
   const handleLogout = async () => {
     try {
       await signOut(auth);
-      setActiveTab('dashboard');
+      
+      setUser(null);
+      setProfile(null);
+      setPublicProfile(null);
+      setIsGuest(false);
+      setShowLogin(false);
+      setActiveTab('home');
     } catch (e) {
       console.error("Logout error:", e);
     }
   };
 
-  const handleResetProgress = () => {
-    // Mock reset function
-    console.log("Progress reset triggered");
-    alert("Progress has been reset (Mock)");
+  const handleResetProgress = async () => {
+    if (!user || !publicProfile || !profile) return;
+    try {
+      const resetPublicProfile = {
+        ...publicProfile,
+        points: 0,
+        badges: [],
+        stats: {
+          aiQueries: 0,
+          actionsTaken: 0,
+          strongPasswords: 0,
+          phishingDetected: 0,
+          threatsAnalyzed: 0,
+          toolsUsed: [],
+          simulationsCompleted: 0,
+          topicsCompleted: 0,
+          quizzesPassed: 0
+        }
+      };
+      await setDoc(doc(db, 'publicProfiles', user.uid), resetPublicProfile);
+      await setDoc(doc(db, 'userProfiles', user.uid), { ...profile, riskScore: 15 }, { merge: true });
+      alert("Progress has been reset.");
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, 'publicProfiles/userProfiles');
+    }
+  };
+
+  const handleExportData = () => {
+    if (!user || !publicProfile || !profile) return;
+    const data = {
+      userEmail: profile.email,
+      userXP: publicProfile.points,
+      userStats: publicProfile.stats,
+      userBadges: publicProfile.badges,
+      completedTopics: publicProfile.completedTopics,
+      quizScores: publicProfile.quizScores,
+      simulationScores: publicProfile.simulationScores,
+      chatSessions: chatSessions,
+      riskScore: profile.riskScore,
+      recentActivity: recentActivity,
+      preferences: profile.preferences
+    };
+
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `credentia-export-${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   // Profile Image Upload (Base64 resize)
@@ -545,87 +611,12 @@ export default function App() {
         displayName: editDisplayName || publicProfile.displayName,
         photoURL: editPhotoURL || publicProfile.photoURL || ''
       };
-      await updateDoc(doc(db, 'public_profiles', user.uid), {
-        displayName: updated.displayName,
-        photoURL: updated.photoURL
-      });
-      await updateDoc(doc(db, 'users', user.uid), {
-        preferences
-      });
-      setPublicProfile(updated);
+      
+      await setDoc(doc(db, 'publicProfiles', user.uid), updated);
       setIsEditingProfile(false);
-    } catch (e) {
-      console.error("Error saving profile", e);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, 'publicProfiles');
     }
-  };
-
-  const handleSendMessage = async (text: string = input) => {
-    if (!text.trim()) return;
-    
-    const userMsgId = Date.now().toString();
-    const userMsg: Message = {
-      id: userMsgId,
-      role: 'user',
-      text,
-      timestamp: new Date()
-    };
-    
-    // Optimistic update for UI responsiveness
-    setMessages(prev => [...prev, userMsg]);
-    setInput('');
-    setIsTyping(true);
-    setActiveTab('chat');
-
-    // Save user message to Firestore
-    if (user) {
-      try {
-        await setDoc(doc(db, 'users', user.uid, 'messages', userMsgId), {
-          role: 'user',
-          text,
-          timestamp: userMsg.timestamp.toISOString()
-        });
-      } catch (e) {
-        console.error("Error saving user message:", e);
-      }
-    }
-
-    const history = messages.map(m => ({
-      role: m.role === 'ai' ? 'model' as const : 'user' as const,
-      parts: [{ text: m.text }]
-    }));
-
-    const [responseText] = await Promise.all([
-      getCyberResponse(text, history),
-      new Promise(resolve => setTimeout(resolve, 1500)) // Ensure typing indicator shows for at least 1.5s
-    ]);
-    
-    const aiMsgId = (Date.now() + 1).toString();
-    const aiMsg: Message = {
-      id: aiMsgId,
-      role: 'ai',
-      text: responseText,
-      timestamp: new Date()
-    };
-    
-    // Optimistic update
-    setMessages(prev => [...prev, aiMsg]);
-    setIsTyping(false);
-
-    // Save AI message to Firestore
-    if (user) {
-      try {
-        await setDoc(doc(db, 'users', user.uid, 'messages', aiMsgId), {
-          role: 'ai',
-          text: responseText,
-          timestamp: aiMsg.timestamp.toISOString()
-        });
-      } catch (e) {
-        console.error("Error saving AI message:", e);
-      }
-    }
-    
-    updateRiskScore(Math.min(100, Math.max(0, riskScore + (text.length % 5))));
-    trackAction(2, 'aiQueries', 'chat');
   };
 
   const onAnalyzePassword = () => {
@@ -638,6 +629,7 @@ export default function App() {
     } else {
       trackAction(5, 'actionsTaken', 'password');
     }
+    addRecentActivity('Password Analyzed', 'tool');
   };
 
   const onAnalyzePhishing = () => {
@@ -650,6 +642,7 @@ export default function App() {
     } else {
       trackAction(5, 'actionsTaken', 'phishing');
     }
+    addRecentActivity('Phishing Analyzed', 'tool');
   };
 
   const onAnalyzeThreat = async () => {
@@ -666,6 +659,7 @@ export default function App() {
       } else {
         trackAction(5, 'actionsTaken', 'threat');
       }
+      addRecentActivity('Threat Analyzed', 'tool');
     }
   };
 
@@ -693,6 +687,13 @@ export default function App() {
         </motion.div>
       </div>
     );
+  }
+
+  if (!user && !isGuest) {
+    if (showLogin) {
+      return <Login onBack={() => setShowLogin(false)} onSuccess={() => setShowLogin(false)} />;
+    }
+    return <LandingPage onLogin={() => setShowLogin(true)} onGuest={() => setIsGuest(true)} />;
   }
 
   return (
@@ -851,14 +852,14 @@ export default function App() {
       </header>
 
       {/* Main Content */}
-      <main className={cn("flex-1 overflow-y-auto scrollbar-hide p-4 space-y-6", activeTab !== 'chat' && "pb-24")}>
+      <main className={cn("flex-1 overflow-y-auto scrollbar-hide p-4 space-y-6", "pb-24")}>
         {showSimulationCenter ? (
           <SimulationCenter 
             publicProfile={publicProfile}
             onCompleteSimulation={handleCompleteSimulation}
             onClose={() => setShowSimulationCenter(false)}
           />
-        ) : activeTab === 'dashboard' ? (
+        ) : activeTab === 'home' ? (
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -868,7 +869,7 @@ export default function App() {
             <div className="flex items-center justify-between px-2">
               <div>
                 <h2 className="text-xl font-bold">
-                  {user && publicProfile ? `Welcome, ${publicProfile.displayName}` : "Welcome, Guest"}
+                  {user && publicProfile ? `Welcome back, ${publicProfile.displayName}` : "Welcome, Guest"}
                 </h2>
                 <p className="text-xs text-white/40">
                   {user ? "Your security profile is synced" : "Login to save your progress"}
@@ -890,94 +891,112 @@ export default function App() {
               )}
             </div>
 
-            {/* Gamification Stats */}
-            {user && publicProfile && (
-              <section className="bg-gradient-to-r from-cyber-card to-cyber-bg p-5 rounded-3xl border border-cyber-blue/20 flex items-center justify-between">
-                <div>
-                  <p className="text-[10px] uppercase text-cyber-blue font-bold tracking-wider mb-1">Cyber XP</p>
-                  <div className="flex items-end gap-1">
-                    <span className="text-3xl font-bold">{publicProfile.points}</span>
+            {/* Security Score */}
+            <section className="bg-cyber-card p-6 rounded-3xl border border-white/5 relative overflow-hidden flex items-center justify-between">
+              <div className="absolute top-0 right-0 p-4 opacity-10">
+                <Shield className="w-24 h-24" />
+              </div>
+              <div className="z-10">
+                <h3 className="text-sm font-bold uppercase tracking-widest text-white/30 mb-2">Security Score</h3>
+                <p className="text-[10px] text-white/50 max-w-[200px] leading-relaxed">
+                  Based on your learning progress, quiz scores, and tool usage.
+                </p>
+              </div>
+              <div className="z-10">
+                <RiskMeter score={100 - riskScore} />
+              </div>
+            </section>
+
+            {/* Learning Progress Summary */}
+            <section className="bg-gradient-to-r from-cyber-card to-cyber-bg p-5 rounded-3xl border border-cyber-blue/20 flex items-center justify-between">
+              <div>
+                <p className="text-[10px] uppercase text-cyber-blue font-bold tracking-wider mb-1">Learning Progress</p>
+                <div className="flex items-end gap-1">
+                  <span className="text-3xl font-bold">{publicProfile?.completedTopics?.length || 0}</span>
+                  <span className="text-xs text-white/50 mb-1">/ 50 Topics</span>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <div className="text-right">
+                  <p className="text-[10px] uppercase text-cyber-yellow font-bold tracking-wider mb-1">Cyber XP</p>
+                  <div className="flex items-end gap-1 justify-end">
+                    <span className="text-xl font-bold">{publicProfile?.points || 0}</span>
                     <span className="text-xs text-white/50 mb-1">pts</span>
                   </div>
                 </div>
-                <div className="flex gap-2">
-                  {publicProfile.badges.length === 0 ? (
-                    <div className="text-[10px] text-white/30 italic max-w-[100px] text-right">
-                      Complete tasks to earn badges
-                    </div>
-                  ) : (
-                    publicProfile.badges.slice(0, 3).map((badgeId, i) => {
-                      const badgeDef = BADGE_DEFINITIONS.find(b => b.id === badgeId);
-                      if (!badgeDef) return null;
-                      const Icon = badgeDef.icon;
-                      return (
-                        <div key={i} className={cn("w-10 h-10 border flex items-center justify-center relative group", badgeDef.shapeClass, badgeDef.colorClass)}>
-                          <Icon className="w-5 h-5" />
-                          <div className="absolute -top-8 bg-black border border-white/10 text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
-                            {badgeDef.name}
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
-                  {publicProfile.badges.length > 3 && (
-                    <div className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-xs font-bold">
-                      +{publicProfile.badges.length - 3}
-                    </div>
-                  )}
-                </div>
-              </section>
-            )}
-
-            {/* Security Intelligence Report */}
-            <section className="bg-cyber-card p-6 rounded-3xl border border-white/5 relative overflow-hidden">
-              <div className="absolute top-0 right-0 p-4 opacity-10">
-                <Zap className="w-24 h-24" />
-              </div>
-              <div className="flex items-center justify-between mb-6">
-                <div>
-                  <h2 className="text-lg font-semibold mb-1">Security Intelligence Report</h2>
-                  <p className="text-sm text-white/50 mb-4">Your current digital risk analysis</p>
-                  <div className={cn(
-                    "px-3 py-1 rounded-full text-xs font-bold inline-block",
-                    riskScore < 30 ? "bg-cyber-green/10 text-cyber-green" :
-                    riskScore < 70 ? "bg-cyber-yellow/10 text-cyber-yellow" :
-                    "bg-cyber-red/10 text-cyber-red"
-                  )}>
-                    {riskScore < 30 ? "SAFE" : riskScore < 70 ? "MODERATE" : "HIGH RISK"}
-                  </div>
-                </div>
-                <RiskMeter score={riskScore} />
-              </div>
-              
-              <div className="grid grid-cols-2 gap-4 mt-4 border-t border-white/10 pt-4">
-                <div>
-                  <h3 className="text-xs font-bold text-cyber-green uppercase tracking-wider mb-2 flex items-center gap-1">
-                    <CheckCircle2 className="w-3 h-3" /> Strengths
-                  </h3>
-                  <ul className="text-xs text-white/70 space-y-1">
-                    <li>• Strong password habits</li>
-                    <li>• Active learning streak</li>
-                  </ul>
-                </div>
-                <div>
-                  <h3 className="text-xs font-bold text-cyber-red uppercase tracking-wider mb-2 flex items-center gap-1">
-                    <AlertTriangle className="w-3 h-3" /> Weaknesses
-                  </h3>
-                  <ul className="text-xs text-white/70 space-y-1">
-                    <li>• Phishing detection needs work</li>
-                    <li>• MFA not enabled everywhere</li>
-                  </ul>
-                </div>
-              </div>
-              
-              <div className="mt-4 bg-white/5 p-3 rounded-xl border border-white/10">
-                <h3 className="text-xs font-bold text-cyber-blue uppercase tracking-wider mb-1 flex items-center gap-1">
-                  <Zap className="w-3 h-3" /> Recommendation
-                </h3>
-                <p className="text-xs text-white/70">Complete the "Phishing Spotter" simulation to improve your threat detection skills and lower your risk score.</p>
               </div>
             </section>
+
+            {/* Quick Access Cards */}
+            <section className="space-y-4">
+              <h3 className="text-sm font-bold uppercase tracking-widest text-white/30 px-2">Quick Access</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <button 
+                  onClick={() => setActiveTab('learningHub')}
+                  className="bg-cyber-card p-5 rounded-3xl border border-white/5 hover:border-cyber-blue/50 transition-all flex flex-col items-center justify-center gap-3 group"
+                >
+                  <div className="w-12 h-12 rounded-full bg-cyber-blue/10 flex items-center justify-center group-hover:scale-110 transition-transform">
+                    <BookOpen className="w-6 h-6 text-cyber-blue" />
+                  </div>
+                  <span className="text-sm font-bold">Learning Hub</span>
+                </button>
+                <button 
+                  onClick={() => setActiveTab('tools')}
+                  className="bg-cyber-card p-5 rounded-3xl border border-white/5 hover:border-cyber-purple/50 transition-all flex flex-col items-center justify-center gap-3 group"
+                >
+                  <div className="w-12 h-12 rounded-full bg-cyber-purple/10 flex items-center justify-center group-hover:scale-110 transition-transform">
+                    <Wrench className="w-6 h-6 text-cyber-purple" />
+                  </div>
+                  <span className="text-sm font-bold">Security Tools</span>
+                </button>
+              </div>
+            </section>
+
+            {/* Recent Activity */}
+            <section className="space-y-4">
+              <h3 className="text-sm font-bold uppercase tracking-widest text-white/30 px-2">Recent Activity</h3>
+              <div className="bg-cyber-card rounded-3xl border border-white/5 overflow-hidden">
+                {recentActivity.length > 0 ? (
+                  recentActivity.map((activity, index) => (
+                    <div key={activity.id} className={cn("p-4 flex items-center gap-3", index !== recentActivity.length - 1 && "border-b border-white/5")}>
+                      <div className={cn(
+                        "w-8 h-8 rounded-full flex items-center justify-center",
+                        activity.type === 'topic' ? "bg-cyber-yellow/10 text-cyber-yellow" :
+                        activity.type === 'quiz' ? "bg-cyber-green/10 text-cyber-green" :
+                        activity.type === 'simulation' ? "bg-cyber-purple/10 text-cyber-purple" :
+                        "bg-cyber-blue/10 text-cyber-blue"
+                      )}>
+                        {activity.type === 'topic' ? <BookOpen className="w-4 h-4" /> :
+                         activity.type === 'quiz' ? <Award className="w-4 h-4" /> :
+                         activity.type === 'simulation' ? <Shield className="w-4 h-4" /> :
+                         <Bot className="w-4 h-4" />}
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium">{activity.title}</p>
+                        <p className="text-xs text-white/40">
+                          {new Date(activity.timestamp).toLocaleDateString()} {new Date(activity.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="p-6 text-center text-white/50 text-sm">
+                    No recent activity. Start learning to earn XP!
+                  </div>
+                )}
+              </div>
+            </section>
+          </motion.div>
+        ) : activeTab === 'tools' ? (
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="space-y-6"
+          >
+            <div className="px-2">
+              <h2 className="text-xl font-bold">Security Tools</h2>
+              <p className="text-xs text-white/40">Analyze threats, passwords, and phishing attempts.</p>
+            </div>
 
             {/* Simulation Center Banner */}
             <section className="bg-gradient-to-r from-orange-500/20 to-cyber-card p-6 rounded-3xl border border-orange-500/30 relative overflow-hidden group cursor-pointer" onClick={() => setShowSimulationCenter(true)}>
@@ -1180,94 +1199,6 @@ export default function App() {
               CREDENTIA Cyber AI Mentor • For educational purposes only
             </p>
           </motion.div>
-        ) : activeTab === 'chat' ? (
-          <div className="flex flex-col h-full">
-            <div className="flex-1 space-y-4">
-              {messages.map((msg) => (
-                <motion.div
-                  key={msg.id}
-                  initial={{ opacity: 0, x: msg.role === 'user' ? 20 : -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  className={cn(
-                    "flex gap-3 max-w-[85%] group",
-                    msg.role === 'user' ? "ml-auto flex-row-reverse" : "mr-auto"
-                  )}
-                >
-                  <div className={cn(
-                    "w-8 h-8 rounded-full flex items-center justify-center shrink-0 overflow-hidden",
-                    msg.role === 'user' ? "bg-cyber-blue/20" : "bg-cyber-card border border-white/10"
-                  )}>
-                    {msg.role === 'user' ? (
-                      publicProfile?.photoURL ? (
-                        <img src={publicProfile.photoURL} alt="User" className="w-full h-full object-cover" />
-                      ) : (
-                        <User className="w-4 h-4 text-cyber-blue" />
-                      )
-                    ) : (
-                      <Bot className="w-4 h-4 text-cyber-blue" />
-                    )}
-                  </div>
-                  <div className={cn(
-                    "flex flex-col gap-1",
-                    msg.role === 'user' ? "items-end" : "items-start"
-                  )}>
-                    <div className={cn(
-                      "p-3 rounded-2xl text-sm leading-relaxed relative",
-                      msg.role === 'user' 
-                        ? "bg-cyber-blue text-black font-medium rounded-tr-none" 
-                        : "bg-cyber-card border border-white/5 rounded-tl-none"
-                    )}>
-                      {msg.text}
-                    </div>
-                    <div className={cn(
-                      "flex items-center gap-2 text-[10px] text-white/40 px-1 opacity-0 group-hover:opacity-100 transition-opacity",
-                      msg.role === 'user' ? "flex-row-reverse" : "flex-row"
-                    )}>
-                      <span>
-                        {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </span>
-                      <button 
-                        onClick={() => handleCopy(msg.id, msg.text)}
-                        className="hover:text-white transition-colors"
-                        title="Copy message"
-                      >
-                        {copiedId === msg.id ? <Check className="w-3 h-3 text-cyber-green" /> : <Copy className="w-3 h-3" />}
-                      </button>
-                    </div>
-                  </div>
-                </motion.div>
-              ))}
-              {isTyping && (
-                <div className="flex gap-3 mr-auto">
-                  <div className="w-8 h-8 rounded-full bg-cyber-card border border-white/10 flex items-center justify-center">
-                    <Bot className="w-4 h-4 text-cyber-blue" />
-                  </div>
-                  <div className="bg-cyber-card border border-white/5 p-3 rounded-2xl rounded-tl-none flex items-center gap-2">
-                    <span className="text-xs text-cyber-blue font-medium">AI is typing...</span>
-                    <div className="flex gap-1">
-                      <motion.div animate={{ opacity: [0.2, 1, 0.2] }} transition={{ repeat: Infinity, duration: 1 }} className="w-1.5 h-1.5 bg-cyber-blue rounded-full" />
-                      <motion.div animate={{ opacity: [0.2, 1, 0.2] }} transition={{ repeat: Infinity, duration: 1, delay: 0.2 }} className="w-1.5 h-1.5 bg-cyber-blue rounded-full" />
-                      <motion.div animate={{ opacity: [0.2, 1, 0.2] }} transition={{ repeat: Infinity, duration: 1, delay: 0.4 }} className="w-1.5 h-1.5 bg-cyber-blue rounded-full" />
-                    </div>
-                  </div>
-                </div>
-              )}
-              <div ref={chatEndRef} />
-            </div>
-            
-            {/* Suggestions */}
-            <div className="flex gap-2 overflow-x-auto scrollbar-hide py-4">
-              {suggestions.map((s, i) => (
-                <button 
-                  key={i}
-                  onClick={() => handleSendMessage(s)}
-                  className="whitespace-nowrap bg-white/5 border border-white/10 px-3 py-1.5 rounded-full text-[10px] hover:bg-cyber-blue/10 hover:border-cyber-blue/30 transition-all"
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
-          </div>
         ) : activeTab === 'learningHub' ? (
           <LearningHub 
             publicProfile={publicProfile} 
@@ -1403,9 +1334,13 @@ export default function App() {
                   
                   <h2 className="text-2xl font-bold mt-4">{publicProfile?.displayName || 'Cyber Agent'}</h2>
                   <p className="text-sm text-cyber-blue font-bold uppercase tracking-widest mt-1">
-                    {publicProfile?.points && publicProfile.points > 1000 ? 'Master' : 
-                     publicProfile?.points && publicProfile.points > 500 ? 'Expert' : 
-                     publicProfile?.points && publicProfile.points > 100 ? 'Intermediate' : 'Beginner'}
+                    {(() => {
+                      const xp = publicProfile?.points || 0;
+                      if (xp > 1000) return 'Master';
+                      if (xp > 500) return 'Expert';
+                      if (xp > 100) return 'Intermediate';
+                      return 'Cyber Recruit';
+                    })()}
                   </p>
                   
                   <div className="flex gap-6 mt-6 w-full justify-center">
@@ -1416,9 +1351,13 @@ export default function App() {
                     <div className="w-px bg-white/10" />
                     <div className="text-center">
                       <p className="text-2xl font-bold">
-                        {leaderboard.findIndex(p => p.uid === user?.uid) !== -1 
-                          ? `#${leaderboard.findIndex(p => p.uid === user?.uid) + 1}` 
-                          : '-'}
+                        {(() => {
+                          const xp = publicProfile?.points || 0;
+                          if (xp > 1000) return '1';
+                          if (xp > 500) return '2';
+                          if (xp > 100) return '3';
+                          return '-';
+                        })()}
                       </p>
                       <p className="text-[10px] uppercase tracking-wider text-white/50">Rank</p>
                     </div>
@@ -1482,52 +1421,68 @@ export default function App() {
         isOpen={showSettingsModal} 
         onClose={() => setShowSettingsModal(false)} 
         onResetProgress={handleResetProgress}
+        preferences={preferences}
+        onSavePreferences={(prefs) => {
+          setPreferences(prefs);
+          handleSaveSettings(prefs);
+        }}
+        onExportData={handleExportData}
       />
 
-      {/* Chat Input (Only in Chat Tab) */}
-      {activeTab === 'chat' && (
-        <div className="p-4 pb-24 border-t border-white/10 bg-cyber-bg/80 backdrop-blur-md z-10">
-          <div className="flex gap-2">
-            <input 
-              type="text"
-              placeholder="Type your question about cybersecurity..."
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-              className="flex-1 bg-black/30 border border-white/10 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:border-cyber-blue/50"
-            />
-            <button 
-              onClick={() => handleSendMessage()}
-              disabled={!input.trim()}
-              className="bg-cyber-blue text-black p-3 rounded-2xl hover:bg-cyber-blue/80 transition-colors disabled:opacity-50"
-            >
-              <Send className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
-      )}
+      {/* Floating AI Mentor Button */}
+      <button
+        onClick={() => setShowChatPanel(true)}
+        className="fixed bottom-20 right-4 w-14 h-14 bg-cyber-blue text-black rounded-full shadow-[0_0_20px_rgba(0,255,255,0.4)] flex items-center justify-center hover:scale-110 transition-transform z-30"
+      >
+        <Bot className="w-6 h-6" />
+      </button>
+
+      {/* Chat Panel Overlay */}
+      <AnimatePresence>
+        {showChatPanel && (
+          <ChatPanel
+            isOpen={showChatPanel}
+            onClose={() => setShowChatPanel(false)}
+            userUid={user?.uid}
+            chatSessions={chatSessions}
+            onSessionUpdate={async (session) => {
+              if (user) {
+                try {
+                  await setDoc(doc(db, 'users', user.uid, 'chatSessions', session.id), session);
+                } catch (error) {
+                  handleFirestoreError(error, OperationType.UPDATE, 'chatSessions');
+                }
+              }
+            }}
+            onSessionDelete={async (sessionId) => {
+              if (user) {
+                try {
+                  await deleteDoc(doc(db, 'users', user.uid, 'chatSessions', sessionId));
+                } catch (error) {
+                  handleFirestoreError(error, OperationType.DELETE, 'chatSessions');
+                }
+              }
+            }}
+            onMessageSent={(text) => {
+              updateRiskScore(Math.min(100, Math.max(0, riskScore + (text.length % 5))));
+              trackAction(2, 'aiQueries', 'chat');
+              addRecentActivity('AI Mentor Chat', 'tool');
+            }}
+          />
+        )}
+      </AnimatePresence>
 
       {/* Navigation */}
       <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-cyber-card/90 backdrop-blur-xl border-t border-white/10 p-2 flex justify-around items-center z-20">
         <button 
-          onClick={() => { setActiveTab('dashboard'); setShowSimulationCenter(false); }}
+          onClick={() => { setActiveTab('home'); setShowSimulationCenter(false); }}
           className={cn(
             "flex flex-col items-center gap-1 p-2 rounded-xl transition-all",
-            activeTab === 'dashboard' && !showSimulationCenter ? "text-cyber-blue" : "text-white/30"
+            activeTab === 'home' && !showSimulationCenter ? "text-cyber-blue" : "text-white/30"
           )}
         >
-          <Zap className="w-5 h-5" />
-          <span className="text-[10px] font-bold uppercase">Dashboard</span>
-        </button>
-        <button 
-          onClick={() => { setActiveTab('chat'); setShowSimulationCenter(false); }}
-          className={cn(
-            "flex flex-col items-center gap-1 p-2 rounded-xl transition-all",
-            activeTab === 'chat' && !showSimulationCenter ? "text-cyber-blue" : "text-white/30"
-          )}
-        >
-          <MessageSquare className="w-5 h-5" />
-          <span className="text-[10px] font-bold uppercase">AI Mentor</span>
+          <Home className="w-5 h-5" />
+          <span className="text-[10px] font-bold uppercase">Home</span>
         </button>
         <button 
           onClick={() => { setActiveTab('learningHub'); setShowSimulationCenter(false); }}
@@ -1540,14 +1495,14 @@ export default function App() {
           <span className="text-[10px] font-bold uppercase">Learning Hub</span>
         </button>
         <button 
-          onClick={() => { setActiveTab('leaderboard'); setShowSimulationCenter(false); }}
+          onClick={() => { setActiveTab('tools'); setShowSimulationCenter(false); }}
           className={cn(
             "flex flex-col items-center gap-1 p-2 rounded-xl transition-all",
-            activeTab === 'leaderboard' && !showSimulationCenter ? "text-cyber-blue" : "text-white/30"
+            activeTab === 'tools' && !showSimulationCenter ? "text-cyber-blue" : "text-white/30"
           )}
         >
-          <Trophy className="w-5 h-5" />
-          <span className="text-[10px] font-bold uppercase">Rank</span>
+          <Wrench className="w-5 h-5" />
+          <span className="text-[10px] font-bold uppercase">Tools</span>
         </button>
         <button 
           onClick={() => { setActiveTab('profile'); setShowSimulationCenter(false); }}

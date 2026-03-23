@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Moon, Contrast, Bell, Volume2, Vibrate, Download, AlertTriangle } from 'lucide-react';
 import { cn } from '../utils/cn';
@@ -7,18 +7,46 @@ interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
   onResetProgress: () => void;
+  preferences: {
+    darkMode: boolean;
+    highContrast: boolean;
+    notifications: boolean;
+    soundEffects: boolean;
+    hapticFeedback: boolean;
+  };
+  onSavePreferences: (prefs: any) => void;
+  onExportData: () => void;
 }
 
-export function SettingsModal({ isOpen, onClose, onResetProgress }: SettingsModalProps) {
-  const [darkMode, setDarkMode] = useState(true);
-  const [highContrast, setHighContrast] = useState(false);
-  const [notifications, setNotifications] = useState(true);
-  const [soundEffects, setSoundEffects] = useState(true);
-  const [hapticFeedback, setHapticFeedback] = useState(true);
+export function SettingsModal({ isOpen, onClose, onResetProgress, preferences, onSavePreferences, onExportData }: SettingsModalProps) {
+  const [darkMode, setDarkMode] = useState(preferences.darkMode);
+  const [highContrast, setHighContrast] = useState(preferences.highContrast);
+  const [notifications, setNotifications] = useState(preferences.notifications);
+  const [soundEffects, setSoundEffects] = useState(preferences.soundEffects);
+  const [hapticFeedback, setHapticFeedback] = useState(preferences.hapticFeedback);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
 
+  useEffect(() => {
+    setDarkMode(preferences.darkMode);
+    setHighContrast(preferences.highContrast);
+    setNotifications(preferences.notifications);
+    setSoundEffects(preferences.soundEffects);
+    setHapticFeedback(preferences.hapticFeedback);
+  }, [preferences]);
+
+  const handleSave = () => {
+    onSavePreferences({
+      darkMode,
+      highContrast,
+      notifications,
+      soundEffects,
+      hapticFeedback
+    });
+    onClose();
+  };
+
   const handleExportData = () => {
-    alert('Data export started');
+    onExportData();
   };
 
   const handleResetConfirm = () => {
@@ -35,7 +63,7 @@ export function SettingsModal({ isOpen, onClose, onResetProgress }: SettingsModa
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            onClick={onClose}
+            onClick={handleSave}
             className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50"
           />
           <motion.div
@@ -47,7 +75,7 @@ export function SettingsModal({ isOpen, onClose, onResetProgress }: SettingsModa
           >
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-2xl font-bold">Settings</h2>
-              <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full transition-colors">
+              <button onClick={handleSave} className="p-2 hover:bg-white/10 rounded-full transition-colors">
                 <X className="w-6 h-6" />
               </button>
             </div>

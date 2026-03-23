@@ -2,7 +2,7 @@ export interface Message {
   id: string;
   role: 'user' | 'ai';
   text: string;
-  timestamp: Date;
+  timestamp: string;
 }
 
 export interface PasswordAnalysis {
@@ -26,17 +26,11 @@ export interface RiskState {
 }
 
 export interface UserPreferences {
-  notifications: {
-    email: boolean;
-    push: boolean;
-    weeklyReport: boolean;
-  };
-  privacy: {
-    publicProfile: boolean;
-    shareData: boolean;
-  };
-  sound: boolean;
   darkMode: boolean;
+  highContrast: boolean;
+  notifications: boolean;
+  soundEffects: boolean;
+  hapticFeedback: boolean;
 }
 
 export interface UserProfile {
@@ -45,6 +39,13 @@ export interface UserProfile {
   riskScore: number;
   lastAnalyzed?: string;
   preferences?: UserPreferences;
+}
+
+export interface ChatSession {
+  id: string;
+  title: string;
+  messages: Message[];
+  updatedAt: string;
 }
 
 export interface PublicProfile {
@@ -73,6 +74,7 @@ export interface PublicProfile {
   completedTopics?: string[];
   quizScores?: Record<string, number>;
   simulationScores?: Record<string, number>;
+  chatSessions?: ChatSession[];
 }
 
 export interface QuizQuestion {

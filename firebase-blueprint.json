@@ -1,72 +1,120 @@
 {
   "entities": {
-    "UserProfile": {
-      "title": "User Profile",
-      "description": "Stores user-specific security data and preferences.",
-      "type": "object",
-      "properties": {
-        "uid": { "type": "string", "description": "Firebase Auth UID" },
-        "email": { "type": "string", "description": "User email" },
-        "riskScore": { "type": "number", "description": "Current calculated risk score" },
-        "lastAnalyzed": { "type": "string", "format": "date-time", "description": "Last time an analysis was performed" },
-        "preferences": { "type": "object", "description": "User app preferences" }
-      },
-      "required": ["uid", "email"]
-    },
     "PublicProfile": {
-      "title": "Public Profile",
-      "description": "Publicly visible user data for leaderboard.",
+      "title": "PublicProfile",
+      "description": "Publicly visible profile information and stats for the leaderboard.",
       "type": "object",
       "properties": {
-        "uid": { "type": "string" },
-        "displayName": { "type": "string" },
-        "points": { "type": "number" },
-        "badges": { "type": "array", "items": { "type": "string" } },
-        "stats": { "type": "object" }
+        "uid": { "type": "string", "description": "User ID" },
+        "displayName": { "type": "string", "description": "Display name" },
+        "points": { "type": "number", "description": "Total XP points" },
+        "badges": { "type": "array", "items": { "type": "string" }, "description": "Array of badge IDs" },
+        "photoURL": { "type": "string", "description": "Profile picture URL" },
+        "completedTopics": { "type": "array", "items": { "type": "string" }, "description": "Array of completed topic IDs" },
+        "quizScores": { "type": "object", "description": "Map of topicId to highest score" },
+        "simulationScores": { "type": "object", "description": "Map of simulationId to highest score" },
+        "stats": {
+          "type": "object",
+          "properties": {
+            "aiQueries": { "type": "number" },
+            "actionsTaken": { "type": "number" },
+            "strongPasswords": { "type": "number" },
+            "phishingDetected": { "type": "number" },
+            "threatsAnalyzed": { "type": "number" },
+            "toolsUsed": { "type": "array", "items": { "type": "string" } },
+            "simulationsCompleted": { "type": "number" },
+            "topicsCompleted": { "type": "number" },
+            "quizzesPassed": { "type": "number" }
+          }
+        }
       },
-      "required": ["uid", "displayName", "points", "badges"]
+      "required": ["uid", "displayName", "points", "badges", "completedTopics", "stats"]
     },
-    "NewsItem": {
-      "title": "Cyber News",
-      "description": "Daily cybersecurity news updates.",
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Private user profile information, preferences, and risk score.",
       "type": "object",
       "properties": {
-        "title": { "type": "string" },
-        "summary": { "type": "string" },
-        "url": { "type": "string" },
-        "date": { "type": "string", "format": "date" },
-        "category": { "type": "string" }
+        "uid": { "type": "string", "description": "User ID" },
+        "email": { "type": "string", "description": "User's email address" },
+        "riskScore": { "type": "number", "description": "Current risk score" },
+        "preferences": {
+          "type": "object",
+          "properties": {
+            "notifications": {
+              "type": "object",
+              "properties": {
+                "email": { "type": "boolean" },
+                "push": { "type": "boolean" },
+                "weeklyReport": { "type": "boolean" }
+              }
+            },
+            "privacy": {
+              "type": "object",
+              "properties": {
+                "publicProfile": { "type": "boolean" },
+                "shareData": { "type": "boolean" }
+              }
+            },
+            "sound": { "type": "boolean" },
+            "darkMode": { "type": "boolean" }
+          }
+        }
       },
-      "required": ["title", "summary", "date"]
+      "required": ["uid", "email", "riskScore", "preferences"]
     },
-    "ChatMessage": {
-      "title": "Chat Message",
-      "description": "A single message in the AI chat history.",
+    "ChatSession": {
+      "title": "ChatSession",
+      "description": "A chat session with the AI assistant.",
       "type": "object",
       "properties": {
-        "role": { "type": "string", "enum": ["user", "ai"] },
-        "text": { "type": "string" },
-        "timestamp": { "type": "string", "format": "date-time" }
+        "id": { "type": "string", "description": "Session ID" },
+        "title": { "type": "string", "description": "Session title" },
+        "timestamp": { "type": "string", "description": "Creation timestamp" },
+        "messages": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "role": { "type": "string", "enum": ["user", "assistant"] },
+              "content": { "type": "string" },
+              "timestamp": { "type": "string" }
+            }
+          }
+        }
       },
-      "required": ["role", "text", "timestamp"]
+      "required": ["id", "title", "timestamp", "messages"]
+    },
+    "RecentActivity": {
+      "title": "RecentActivity",
+      "description": "A log of recent actions taken by the user.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Activity ID" },
+        "title": { "type": "string", "description": "Activity title" },
+        "type": { "type": "string", "enum": ["topic", "quiz", "simulation", "tool"] },
+        "timestamp": { "type": "string", "description": "Timestamp of the activity" }
+      },
+      "required": ["id", "title", "type", "timestamp"]
     }
   },
   "firestore": {
-    "/users/{userId}": {
-      "schema": "UserProfile",
-      "description": "User profile documents"
+    "/publicProfiles/{userId}": {
+      "schema": { "$ref": "#/entities/PublicProfile" },
+      "description": "Public profiles for all users, used for the leaderboard."
     },
-    "/users/{userId}/messages/{messageId}": {
-      "schema": "ChatMessage",
-      "description": "Chat history for the user"
+    "/userProfiles/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Private profiles containing sensitive preferences and risk scores."
     },
-    "/public_profiles/{userId}": {
-      "schema": "PublicProfile",
-      "description": "Public profiles for leaderboard"
+    "/users/{userId}/chatSessions/{sessionId}": {
+      "schema": { "$ref": "#/entities/ChatSession" },
+      "description": "Chat sessions belonging to a specific user."
     },
-    "/news": {
-      "schema": "NewsItem",
-      "description": "Global cyber news collection"
+    "/users/{userId}/recentActivity/{activityId}": {
+      "schema": { "$ref": "#/entities/RecentActivity" },
+      "description": "Recent activities belonging to a specific user."
     }
   }
 }
