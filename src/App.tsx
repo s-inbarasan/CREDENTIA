@@ -48,9 +48,7 @@ import { LandingPage } from './components/LandingPage';
 import { Login } from './components/Login';
 import { ChatPanel } from './components/ChatPanel';
 import { BADGE_DEFINITIONS, checkNewBadges } from './utils/badges';
-import { auth, db, handleFirestoreError, OperationType } from './firebase';
-import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { doc, setDoc, getDoc, onSnapshot, collection, query, orderBy, limit, deleteDoc } from 'firebase/firestore';
+import { supabase } from './supabase';
 import { cn } from './utils/cn';
 
 const RiskMeter = ({ score }: { score: number }) => {
@@ -126,11 +124,14 @@ export default function App() {
     if (user && userDoc) {
       setIsSavingSettings(true);
       try {
-        await setDoc(doc(db, 'users', user.uid), { preferences: newPrefs }, { merge: true });
+        await supabase
+          .from('profiles')
+          .update({ preferences: newPrefs })
+          .eq('id', user.uid);
         setShowSettingsSaved(true);
         setTimeout(() => setShowSettingsSaved(false), 3000);
       } catch (error) {
-        handleFirestoreError(error, OperationType.UPDATE, 'users');
+        console.error('Error saving settings:', error);
       } finally {
         setIsSavingSettings(false);
       }
@@ -140,15 +141,15 @@ export default function App() {
   const addRecentActivity = async (title: string, type: 'topic' | 'quiz' | 'simulation' | 'tool') => {
     if (user) {
       const newActivity = {
-        id: Date.now().toString(),
         title,
         type,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        user_id: user.uid
       };
       try {
-        await setDoc(doc(db, 'users', user.uid, 'recentActivity', newActivity.id), newActivity);
+        await supabase.from('recent_activity').insert(newActivity);
       } catch (error) {
-        handleFirestoreError(error, OperationType.CREATE, 'recentActivity');
+        console.error('Error adding recent activity:', error);
       }
     }
   };
@@ -173,22 +174,22 @@ export default function App() {
     try {
       addRecentActivity(`Completed: ${topicId.replace(/_/g, ' ')}`, 'topic');
       
-      const updatedProfile = {
-        ...userDoc,
-        completedTopics: newTopics,
-        xp: newPoints,
-        stats: newStats,
-        badges: [...(userDoc.badges || []), ...newBadges]
-      };
-      
-      await setDoc(doc(db, 'users', user.uid), updatedProfile);
+      await supabase
+        .from('profiles')
+        .update({
+          completed_topics: newTopics,
+          xp: newPoints,
+          stats: newStats,
+          badges: [...(userDoc.badges || []), ...newBadges]
+        })
+        .eq('id', user.uid);
       
       if (newBadges.length > 0) {
         setShowBadgeNotification(newBadges[0]);
         setTimeout(() => setShowBadgeNotification(null), 3000);
       }
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, 'users');
+      console.error('Error completing topic:', error);
     }
   };
 
@@ -209,21 +210,21 @@ export default function App() {
     try {
       addRecentActivity(`Passed Quiz: ${topicId.replace(/_/g, ' ')}`, 'quiz');
       
-      const updatedProfile = {
-        ...userDoc,
-        quizScores: newScores,
-        stats: newStats,
-        badges: [...(userDoc.badges || []), ...newBadges]
-      };
-      
-      await setDoc(doc(db, 'users', user.uid), updatedProfile);
+      await supabase
+        .from('profiles')
+        .update({
+          quiz_scores: newScores,
+          stats: newStats,
+          badges: [...(userDoc.badges || []), ...newBadges]
+        })
+        .eq('id', user.uid);
       
       if (newBadges.length > 0) {
         setShowBadgeNotification(newBadges[0]);
         setTimeout(() => setShowBadgeNotification(null), 3000);
       }
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, 'users');
+      console.error('Error passing quiz:', error);
     }
   };
 
@@ -247,22 +248,22 @@ export default function App() {
     try {
       addRecentActivity(`Completed Simulation: ${scenarioId.replace(/_/g, ' ')}`, 'simulation');
       
-      const updatedProfile = {
-        ...userDoc,
-        simulationScores: newScores,
-        xp: newPoints,
-        stats: newStats,
-        badges: [...(userDoc.badges || []), ...newBadges]
-      };
-      
-      await setDoc(doc(db, 'users', user.uid), updatedProfile);
+      await supabase
+        .from('profiles')
+        .update({
+          simulation_scores: newScores,
+          xp: newPoints,
+          stats: newStats,
+          badges: [...(userDoc.badges || []), ...newBadges]
+        })
+        .eq('id', user.uid);
       
       if (newBadges.length > 0) {
         setShowBadgeNotification(newBadges[0]);
         setTimeout(() => setShowBadgeNotification(null), 3000);
       }
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, 'users');
+      console.error('Error completing simulation:', error);
     }
   };
 
@@ -299,17 +300,19 @@ export default function App() {
 
   // Auth & Profile Sync
   useEffect(() => {
-    let unsubUserDoc: () => void;
-    let unsubChatSessions: () => void;
-    let unsubRecentActivity: () => void;
+    let profileSubscription: any;
+    let chatSubscription: any;
+    let activitySubscription: any;
 
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      const supabaseUser = session?.user;
+      
+      if (supabaseUser) {
         const appUser: AppUser = {
-          uid: firebaseUser.uid,
-          email: firebaseUser.email,
-          displayName: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User',
-          photoURL: firebaseUser.photoURL
+          uid: supabaseUser.id,
+          email: supabaseUser.email || '',
+          displayName: supabaseUser.user_metadata?.full_name || supabaseUser.email?.split('@')[0] || 'User',
+          photoURL: supabaseUser.user_metadata?.avatar_url || ''
         };
         
         setUser(appUser);
@@ -319,6 +322,7 @@ export default function App() {
           actionsTaken: 0,
           strongPasswords: 0,
           phishingDetected: 0,
+          threatsAnalyzed: 0,
           toolsUsed: [],
           simulationsCompleted: 0,
           topicsCompleted: 0,
@@ -326,7 +330,7 @@ export default function App() {
         };
 
         const defaultUserDoc: UserDocument = {
-          uid: firebaseUser.uid,
+          uid: supabaseUser.id,
           name: appUser.displayName || 'User',
           email: appUser.email || '',
           xp: 0,
@@ -344,42 +348,138 @@ export default function App() {
 
         // Initialize document if it doesn't exist
         try {
-          const userDocRef = doc(db, 'users', firebaseUser.uid);
-          const userDocSnap = await getDoc(userDocRef);
-          if (!userDocSnap.exists()) {
-            await setDoc(userDocRef, defaultUserDoc);
-          }
-        } catch (error) {
-          handleFirestoreError(error, OperationType.CREATE, 'users');
-        }
+          const { data: existingProfile, error: fetchError } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', supabaseUser.id)
+            .single();
 
-        // Listen to User Document
-        unsubUserDoc = onSnapshot(doc(db, 'users', firebaseUser.uid), (docSnap) => {
-          if (docSnap.exists()) {
-            const data = docSnap.data() as UserDocument;
-            setUserDoc(data);
-            setEditDisplayName(data.name);
-            setEditPhotoURL(data.profileImage || '');
-            setRiskScore(data.riskScore);
-            if (data.preferences) {
-              setPreferences(data.preferences);
+          if (fetchError && fetchError.code === 'PGRST116') {
+            // Profile doesn't exist, create it
+            const { error: insertError } = await supabase
+              .from('profiles')
+              .insert({
+                id: supabaseUser.id,
+                name: defaultUserDoc.name,
+                email: defaultUserDoc.email,
+                xp: defaultUserDoc.xp,
+                level: defaultUserDoc.level,
+                created_at: defaultUserDoc.createdAt,
+                profile_image: defaultUserDoc.profileImage,
+                badges: defaultUserDoc.badges,
+                completed_topics: defaultUserDoc.completedTopics,
+                quiz_scores: defaultUserDoc.quizScores,
+                simulation_scores: defaultUserDoc.simulationScores,
+                stats: defaultUserDoc.stats,
+                risk_score: defaultUserDoc.riskScore,
+                preferences: defaultUserDoc.preferences
+              });
+            
+            if (insertError) console.error('Error creating profile:', insertError);
+          } else if (existingProfile) {
+            // Map Supabase snake_case to our camelCase UserDocument
+            const mappedProfile: UserDocument = {
+              uid: existingProfile.id,
+              name: existingProfile.name,
+              email: existingProfile.email,
+              xp: existingProfile.xp,
+              level: existingProfile.level,
+              createdAt: existingProfile.created_at,
+              profileImage: existingProfile.profile_image,
+              badges: existingProfile.badges,
+              completedTopics: existingProfile.completed_topics,
+              quizScores: existingProfile.quiz_scores,
+              simulationScores: existingProfile.simulation_scores,
+              stats: existingProfile.stats,
+              riskScore: existingProfile.risk_score,
+              preferences: existingProfile.preferences
+            };
+            setUserDoc(mappedProfile);
+            setEditDisplayName(mappedProfile.name);
+            setEditPhotoURL(mappedProfile.profileImage || '');
+            setRiskScore(mappedProfile.riskScore);
+            if (mappedProfile.preferences) {
+              setPreferences(mappedProfile.preferences);
             }
           }
-        }, (error) => handleFirestoreError(error, OperationType.GET, 'users'));
+        } catch (error) {
+          console.error('Error in profile sync:', error);
+        }
 
-        // Listen to Chat Sessions
-        const chatSessionsQuery = query(collection(db, 'users', firebaseUser.uid, 'chatSessions'), orderBy('updatedAt', 'desc'));
-        unsubChatSessions = onSnapshot(chatSessionsQuery, (snapshot) => {
-          const sessions = snapshot.docs.map(doc => doc.data() as ChatSession);
-          setChatSessions(sessions);
-        }, (error) => handleFirestoreError(error, OperationType.GET, 'chatSessions'));
+        // Listen to User Document (Realtime)
+        profileSubscription = supabase
+          .channel('public:profiles')
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles', filter: `id=eq.${supabaseUser.id}` }, (payload) => {
+            const data = payload.new as any;
+            if (data) {
+              const mappedProfile: UserDocument = {
+                uid: data.id,
+                name: data.name,
+                email: data.email,
+                xp: data.xp,
+                level: data.level,
+                createdAt: data.created_at,
+                profileImage: data.profile_image,
+                badges: data.badges,
+                completedTopics: data.completed_topics,
+                quizScores: data.quiz_scores,
+                simulationScores: data.simulation_scores,
+                stats: data.stats,
+                riskScore: data.risk_score,
+                preferences: data.preferences
+              };
+              setUserDoc(mappedProfile);
+            }
+          })
+          .subscribe();
 
-        // Listen to Recent Activity
-        const recentActivityQuery = query(collection(db, 'users', firebaseUser.uid, 'recentActivity'), orderBy('timestamp', 'desc'), limit(5));
-        unsubRecentActivity = onSnapshot(recentActivityQuery, (snapshot) => {
-          const activities = snapshot.docs.map(doc => doc.data());
-          setRecentActivity(activities);
-        }, (error) => handleFirestoreError(error, OperationType.GET, 'recentActivity'));
+        // Initial fetch and Listen to Chat Sessions
+        const fetchChatSessions = async () => {
+          const { data, error } = await supabase
+            .from('chat_sessions')
+            .select('*')
+            .eq('user_id', supabaseUser.id)
+            .order('updated_at', { ascending: false });
+          
+          if (data) {
+            setChatSessions(data.map(s => ({
+              id: s.id,
+              title: s.title,
+              updatedAt: s.updated_at,
+              messages: s.messages
+            })));
+          }
+        };
+        fetchChatSessions();
+
+        chatSubscription = supabase
+          .channel('public:chat_sessions')
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_sessions', filter: `user_id=eq.${supabaseUser.id}` }, () => {
+            fetchChatSessions();
+          })
+          .subscribe();
+
+        // Initial fetch and Listen to Recent Activity
+        const fetchRecentActivity = async () => {
+          const { data, error } = await supabase
+            .from('recent_activity')
+            .select('*')
+            .eq('user_id', supabaseUser.id)
+            .order('timestamp', { ascending: false })
+            .limit(5);
+          
+          if (data) {
+            setRecentActivity(data);
+          }
+        };
+        fetchRecentActivity();
+
+        activitySubscription = supabase
+          .channel('public:recent_activity')
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'recent_activity', filter: `user_id=eq.${supabaseUser.id}` }, () => {
+            fetchRecentActivity();
+          })
+          .subscribe();
 
       } else {
         setUser(null);
@@ -387,18 +487,18 @@ export default function App() {
         setRiskScore(15);
         setRecentActivity([]);
         setChatSessions([]);
-        if (unsubUserDoc) unsubUserDoc();
-        if (unsubChatSessions) unsubChatSessions();
-        if (unsubRecentActivity) unsubRecentActivity();
+        if (profileSubscription) profileSubscription.unsubscribe();
+        if (chatSubscription) chatSubscription.unsubscribe();
+        if (activitySubscription) activitySubscription.unsubscribe();
       }
       setLoading(false);
     });
 
     return () => {
-      unsubscribe();
-      if (unsubUserDoc) unsubUserDoc();
-      if (unsubChatSessions) unsubChatSessions();
-      if (unsubRecentActivity) unsubRecentActivity();
+      subscription.unsubscribe();
+      if (profileSubscription) profileSubscription.unsubscribe();
+      if (chatSubscription) chatSubscription.unsubscribe();
+      if (activitySubscription) activitySubscription.unsubscribe();
     };
   }, []);
 
@@ -447,18 +547,28 @@ export default function App() {
     
     const updatedProfile = { ...userDoc, xp: newPoints, badges: newBadges, stats };
     try {
-      await setDoc(doc(db, 'users', user.uid), updatedProfile);
+      await supabase
+        .from('profiles')
+        .update({
+          xp: newPoints,
+          badges: newBadges,
+          stats: stats
+        })
+        .eq('id', user.uid);
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, 'users');
+      console.error('Error updating stats:', error);
     }
   };
 
   const updateRiskScore = async (newScore: number) => {
     if (!user || !userDoc) return;
     try {
-      await setDoc(doc(db, 'users', user.uid), { riskScore: newScore }, { merge: true });
+      await supabase
+        .from('profiles')
+        .update({ risk_score: newScore })
+        .eq('id', user.uid);
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, 'users');
+      console.error('Error updating risk score:', error);
     }
   };
 
@@ -471,7 +581,7 @@ export default function App() {
   const handleLogout = async () => {
     setIsLoggingOut(true);
     try {
-      await signOut(auth);
+      await supabase.auth.signOut();
       
       setUser(null);
       setUserDoc(null);
@@ -492,26 +602,27 @@ export default function App() {
     }
     setIsResetting(true);
     try {
-      const resetUserDoc = {
-        ...userDoc,
-        xp: 0,
-        badges: [],
-        riskScore: 15,
-        stats: {
-          aiQueries: 0,
-          actionsTaken: 0,
-          strongPasswords: 0,
-          phishingDetected: 0,
-          toolsUsed: [],
-          simulationsCompleted: 0,
-          topicsCompleted: 0,
-          quizzesPassed: 0
-        }
-      };
-      await setDoc(doc(db, 'users', user.uid), resetUserDoc);
+      await supabase
+        .from('profiles')
+        .update({
+          xp: 0,
+          badges: [],
+          risk_score: 15,
+          stats: {
+            aiQueries: 0,
+            actionsTaken: 0,
+            strongPasswords: 0,
+            phishingDetected: 0,
+            toolsUsed: [],
+            simulationsCompleted: 0,
+            topicsCompleted: 0,
+            quizzesPassed: 0
+          }
+        })
+        .eq('id', user.uid);
       alert("Progress has been reset.");
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, 'users');
+      console.error('Error resetting progress:', error);
     } finally {
       setIsResetting(false);
     }
@@ -591,16 +702,17 @@ export default function App() {
     if (!user || !userDoc) return;
     setIsSavingProfile(true);
     try {
-      const updated = {
-        ...userDoc,
-        name: editDisplayName || userDoc.name,
-        profileImage: editPhotoURL || userDoc.profileImage || ''
-      };
+      await supabase
+        .from('profiles')
+        .update({
+          name: editDisplayName || userDoc.name,
+          profile_image: editPhotoURL || userDoc.profileImage || ''
+        })
+        .eq('id', user.uid);
       
-      await setDoc(doc(db, 'users', user.uid), updated);
       setIsEditingProfile(false);
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, 'users');
+      console.error('Error saving profile:', error);
     } finally {
       setIsSavingProfile(false);
     }
@@ -1267,18 +1379,29 @@ export default function App() {
             onSessionUpdate={async (session) => {
               if (user) {
                 try {
-                  await setDoc(doc(db, 'users', user.uid, 'chatSessions', session.id), session);
+                  await supabase
+                    .from('chat_sessions')
+                    .upsert({
+                      id: session.id,
+                      user_id: user.uid,
+                      title: session.title,
+                      updated_at: session.updatedAt,
+                      messages: session.messages
+                    });
                 } catch (error) {
-                  handleFirestoreError(error, OperationType.UPDATE, 'chatSessions');
+                  console.error('Error updating chat session:', error);
                 }
               }
             }}
             onSessionDelete={async (sessionId) => {
               if (user) {
                 try {
-                  await deleteDoc(doc(db, 'users', user.uid, 'chatSessions', sessionId));
+                  await supabase
+                    .from('chat_sessions')
+                    .delete()
+                    .eq('id', sessionId);
                 } catch (error) {
-                  handleFirestoreError(error, OperationType.DELETE, 'chatSessions');
+                  console.error('Error deleting chat session:', error);
                 }
               }
             }}

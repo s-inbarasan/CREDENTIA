@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import { Shield, Lock, Mail, ArrowLeft } from 'lucide-react';
 import { motion } from 'motion/react';
-import { auth } from '../firebase';
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
+import { supabase } from '../supabase';
 
 interface LoginProps {
   onBack: () => void;
@@ -22,9 +21,18 @@ export function Login({ onBack, onSuccess }: LoginProps) {
     setLoading(true);
     try {
       if (isSignUp) {
-        await createUserWithEmailAndPassword(auth, email, password);
+        const { error: signUpError } = await supabase.auth.signUp({
+          email,
+          password,
+        });
+        if (signUpError) throw signUpError;
+        alert('Check your email for the confirmation link!');
       } else {
-        await signInWithEmailAndPassword(auth, email, password);
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+        if (signInError) throw signInError;
       }
       onSuccess();
     } catch (err: any) {
@@ -38,12 +46,16 @@ export function Login({ onBack, onSuccess }: LoginProps) {
     setError('');
     setLoading(true);
     try {
-      const provider = new GoogleAuthProvider();
-      await signInWithPopup(auth, provider);
-      onSuccess();
+      const { error: googleError } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: window.location.origin
+        }
+      });
+      if (googleError) throw googleError;
+      // Note: signInWithOAuth usually redirects, so onSuccess might not be called immediately here
     } catch (err: any) {
       setError(err.message || 'Google authentication failed');
-    } finally {
       setLoading(false);
     }
   };
