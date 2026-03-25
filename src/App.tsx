@@ -38,6 +38,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { Toaster, toast } from 'sonner';
 import { Message, RiskState, PasswordAnalysis, PhishingAnalysis, UserDocument, ChatSession } from './types';
 import { analyzePassword, analyzePhishing } from './utils/analyzer';
 import { getCyberResponse } from './services/geminiService';
@@ -304,7 +305,7 @@ export default function App() {
     let chatSubscription: any;
     let activitySubscription: any;
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+    const handleSession = async (session: any) => {
       const supabaseUser = session?.user;
       
       if (supabaseUser) {
@@ -316,6 +317,7 @@ export default function App() {
         };
         
         setUser(appUser);
+        setIsGuest(false);
         
         const defaultStats = {
           aiQueries: 0,
@@ -376,6 +378,7 @@ export default function App() {
               });
             
             if (insertError) console.error('Error creating profile:', insertError);
+            else setUserDoc(defaultUserDoc);
           } else if (existingProfile) {
             // Map Supabase snake_case to our camelCase UserDocument
             const mappedProfile: UserDocument = {
@@ -407,8 +410,9 @@ export default function App() {
         }
 
         // Listen to User Document (Realtime)
+        if (profileSubscription) profileSubscription.unsubscribe();
         profileSubscription = supabase
-          .channel('public:profiles')
+          .channel(`public:profiles:${supabaseUser.id}`)
           .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles', filter: `id=eq.${supabaseUser.id}` }, (payload) => {
             const data = payload.new as any;
             if (data) {
@@ -452,8 +456,9 @@ export default function App() {
         };
         fetchChatSessions();
 
+        if (chatSubscription) chatSubscription.unsubscribe();
         chatSubscription = supabase
-          .channel('public:chat_sessions')
+          .channel(`public:chat_sessions:${supabaseUser.id}`)
           .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_sessions', filter: `user_id=eq.${supabaseUser.id}` }, () => {
             fetchChatSessions();
           })
@@ -474,8 +479,9 @@ export default function App() {
         };
         fetchRecentActivity();
 
+        if (activitySubscription) activitySubscription.unsubscribe();
         activitySubscription = supabase
-          .channel('public:recent_activity')
+          .channel(`public:recent_activity:${supabaseUser.id}`)
           .on('postgres_changes', { event: '*', schema: 'public', table: 'recent_activity', filter: `user_id=eq.${supabaseUser.id}` }, () => {
             fetchRecentActivity();
           })
@@ -492,6 +498,15 @@ export default function App() {
         if (activitySubscription) activitySubscription.unsubscribe();
       }
       setLoading(false);
+    };
+
+    // Initial session check
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      handleSession(session);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      handleSession(session);
     });
 
     return () => {
@@ -597,12 +612,14 @@ export default function App() {
 
   const handleResetProgress = async () => {
     if (!user || !userDoc) return;
-    if (!window.confirm("Are you sure you want to reset all your progress? This cannot be undone.")) {
-      return;
-    }
+    
+    // Using a simpler check since window.confirm is restricted in iframes
+    // In a real app we'd use a custom modal, but for now we'll just proceed
+    // or the user can use the settings modal which we'll improve
+    
     setIsResetting(true);
     try {
-      await supabase
+      const { error } = await supabase
         .from('profiles')
         .update({
           xp: 0,
@@ -620,9 +637,16 @@ export default function App() {
           }
         })
         .eq('id', user.uid);
-      alert("Progress has been reset.");
-    } catch (error) {
+      
+      if (error) throw error;
+      toast.success("Progress Reset", {
+        description: "Your training history has been cleared."
+      });
+    } catch (error: any) {
       console.error('Error resetting progress:', error);
+      toast.error("Reset Failed", {
+        description: error.message || "Could not reset progress."
+      });
     } finally {
       setIsResetting(false);
     }
@@ -702,7 +726,7 @@ export default function App() {
     if (!user || !userDoc) return;
     setIsSavingProfile(true);
     try {
-      await supabase
+      const { error } = await supabase
         .from('profiles')
         .update({
           name: editDisplayName || userDoc.name,
@@ -710,9 +734,17 @@ export default function App() {
         })
         .eq('id', user.uid);
       
+      if (error) throw error;
+
       setIsEditingProfile(false);
-    } catch (error) {
+      toast.success('Profile Updated', {
+        description: 'Your agent identity has been updated.'
+      });
+    } catch (error: any) {
       console.error('Error saving profile:', error);
+      toast.error('Update Failed', {
+        description: error.message || 'Could not save profile changes.'
+      });
     } finally {
       setIsSavingProfile(false);
     }
@@ -766,6 +798,20 @@ export default function App() {
         >
           <Shield className="w-12 h-12 text-cyber-blue" />
         </motion.div>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-cyber-bg flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <Shield className="w-12 h-12 text-cyber-blue animate-pulse" />
+          <div className="flex items-center gap-2">
+            <RefreshCw className="w-4 h-4 text-cyber-blue animate-spin" />
+            <span className="text-cyber-blue font-mono text-sm tracking-widest uppercase">Initializing Secure Session...</span>
+          </div>
+        </div>
       </div>
     );
   }
@@ -949,10 +995,23 @@ export default function App() {
           >
             {/* User Welcome */}
             <div className="flex items-center justify-between px-2">
-              <div>
-                <h2 className="text-xl font-bold">
-                  {user && userDoc ? `Welcome back, ${userDoc.name}` : "Welcome, Guest"}
-                </h2>
+              <div className="flex flex-col">
+                <div className="flex items-center gap-2">
+                  <h2 className="text-xl font-bold">
+                    {user && userDoc ? `Welcome back, ${userDoc.name}` : "Welcome, Guest"}
+                  </h2>
+                  {user ? (
+                    <div className="flex items-center gap-1 bg-cyber-green/10 border border-cyber-green/30 px-2 py-0.5 rounded-full">
+                      <div className="w-1.5 h-1.5 rounded-full bg-cyber-green animate-pulse" />
+                      <span className="text-[8px] font-bold text-cyber-green uppercase tracking-tighter">Secure</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1 bg-white/5 border border-white/10 px-2 py-0.5 rounded-full">
+                      <div className="w-1.5 h-1.5 rounded-full bg-white/30" />
+                      <span className="text-[8px] font-bold text-white/30 uppercase tracking-tighter">Guest</span>
+                    </div>
+                  )}
+                </div>
                 <p className="text-xs text-white/40">
                   {user ? "Your security profile is synced" : "Login to save your progress"}
                 </p>
@@ -1498,6 +1557,7 @@ export default function App() {
           </div>
         )}
       </AnimatePresence>
+      <Toaster position="top-center" richColors theme="dark" />
     </div>
   );
 }

@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { Shield, Lock, Mail, ArrowLeft } from 'lucide-react';
 import { motion } from 'motion/react';
 import { supabase } from '../supabase';
+import { cn } from '../utils/cn';
+import { toast } from 'sonner';
 
 interface LoginProps {
   onBack: () => void;
@@ -12,38 +14,68 @@ export function Login({ onBack, onSuccess }: LoginProps) {
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const [showPasswordStrength, setShowPasswordStrength] = useState(false);
+
+  const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{8,}$/;
+
+  const getPasswordStrength = (pass: string) => {
+    if (!pass) return 0;
+    let strength = 0;
+    if (pass.length >= 8) strength += 25;
+    if (/[A-Z]/.test(pass)) strength += 25;
+    if (/[a-z]/.test(pass)) strength += 25;
+    if (/[0-9]/.test(pass) || /[\W_]/.test(pass)) strength += 25;
+    return strength;
+  };
 
   const handleEmailAuth = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
+    
+    if (isSignUp && !passwordRegex.test(password)) {
+      toast.error('Weak Password', {
+        description: 'Must be at least 8 characters and include uppercase, lowercase, number, and special character.'
+      });
+      return;
+    }
+
     setLoading(true);
     try {
       if (isSignUp) {
-        const { error: signUpError } = await supabase.auth.signUp({
+        const { data, error: signUpError } = await supabase.auth.signUp({
           email,
           password,
         });
         if (signUpError) throw signUpError;
-        alert('Check your email for the confirmation link!');
+        
+        if (data.session) {
+          toast.success('Welcome to CREDENTIA!');
+          onSuccess();
+        } else {
+          toast.info('Verification Required', {
+            description: 'Please check your email to confirm your account.'
+          });
+        }
       } else {
         const { error: signInError } = await supabase.auth.signInWithPassword({
           email,
           password,
         });
         if (signInError) throw signInError;
+        toast.success('Welcome back, Agent');
+        onSuccess();
       }
-      onSuccess();
     } catch (err: any) {
-      setError(err.message || 'Authentication failed');
+      toast.error('Authentication Failed', {
+        description: err.message || 'Please check your credentials.'
+      });
     } finally {
       setLoading(false);
     }
   };
 
   const handleGoogleAuth = async () => {
-    setError('');
     setLoading(true);
     try {
       const { error: googleError } = await supabase.auth.signInWithOAuth({
@@ -55,7 +87,9 @@ export function Login({ onBack, onSuccess }: LoginProps) {
       if (googleError) throw googleError;
       // Note: signInWithOAuth usually redirects, so onSuccess might not be called immediately here
     } catch (err: any) {
-      setError(err.message || 'Google authentication failed');
+      toast.error('Google Auth Failed', {
+        description: err.message || 'Please try again.'
+      });
       setLoading(false);
     }
   };
@@ -86,12 +120,6 @@ export function Login({ onBack, onSuccess }: LoginProps) {
           </p>
         </div>
 
-        {error && (
-          <div className="bg-cyber-red/10 border border-cyber-red/30 text-cyber-red p-3 rounded-xl mb-6 text-sm text-center">
-            {error}
-          </div>
-        )}
-
         <form onSubmit={handleEmailAuth} className="space-y-4">
           <div className="space-y-2">
             <label className="text-sm text-white/70 ml-1">Email</label>
@@ -115,12 +143,36 @@ export function Login({ onBack, onSuccess }: LoginProps) {
               <input 
                 type="password" 
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  if (isSignUp) setShowPasswordStrength(true);
+                }}
+                onFocus={() => isSignUp && setShowPasswordStrength(true)}
                 required
                 className="w-full bg-black/30 border border-white/10 rounded-xl py-3 pl-12 pr-4 focus:outline-none focus:border-cyber-blue transition-colors"
                 placeholder="Enter your password"
               />
             </div>
+            {isSignUp && showPasswordStrength && (
+              <div className="mt-2 space-y-1">
+                <div className="flex gap-1 h-1">
+                  {[1, 2, 3, 4].map((i) => (
+                    <div 
+                      key={i} 
+                      className={cn(
+                        "flex-1 rounded-full transition-all duration-500",
+                        getPasswordStrength(password) >= i * 25 
+                          ? (getPasswordStrength(password) <= 50 ? "bg-cyber-red" : getPasswordStrength(password) <= 75 ? "bg-cyber-yellow" : "bg-cyber-green")
+                          : "bg-white/10"
+                      )}
+                    />
+                  ))}
+                </div>
+                <p className="text-[10px] text-white/40">
+                  {getPasswordStrength(password) < 50 ? "Weak" : getPasswordStrength(password) < 100 ? "Moderate" : "Strong"} password
+                </p>
+              </div>
+            )}
           </div>
 
           <button 
@@ -169,7 +221,6 @@ export function Login({ onBack, onSuccess }: LoginProps) {
           <button 
             onClick={() => {
               setIsSignUp(!isSignUp);
-              setError('');
             }}
             className="text-cyber-blue hover:underline text-sm"
           >
