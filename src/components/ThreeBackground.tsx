@@ -160,7 +160,7 @@ export const ThreeBackground: React.FC<ThreeBackgroundProps> = ({
   return (
     <div 
       ref={containerRef} 
-      className="fixed inset-0 pointer-events-none z-[-1] bg-black"
+      className="fixed inset-0 pointer-events-none z-0 bg-black"
       style={{ background: 'radial-gradient(circle at center, #001a1a 0%, #000000 100%)' }}
     />
   );

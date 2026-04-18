@@ -1030,7 +1030,7 @@ export default function App() {
   console.log('App: Rendering', { loading, hasUser: !!user, needsOnboarding, hasUserDoc: !!userDoc, isEnteringDashboard });
 
   return (
-    <div className="relative min-h-screen overflow-hidden font-sans selection:bg-cyber-blue selection:text-black">
+    <div className="relative min-h-screen bg-black overflow-hidden font-sans selection:bg-cyber-blue selection:text-black">
       {/* Global Background - Stays mounted for animation continuity */}
       <ThreeBackground isWarping={isEnteringDashboard} />
 
@@ -2178,10 +2178,10 @@ export default function App() {
           </div>
         )}
       </AnimatePresence>
-      <Toaster position="top-center" richColors theme="dark" />
           </motion.div>
         )}
       </AnimatePresence>
+      <Toaster position="top-center" richColors theme="dark" />
     </div>
   );
 }
