@@ -1,4 +1,15 @@
-import { Brain, Shield, Lock, Fish, Zap, ShieldAlert, Key, Crown, LucideIcon, Target, Compass, Search, BookOpen } from 'lucide-react';
+import { 
+  Brain, 
+  ShieldPlus, 
+  FishSymbol, 
+  Key, 
+  Award, 
+  Target, 
+  Compass, 
+  FileSearch, 
+  BookOpen,
+  LucideIcon 
+} from 'lucide-react';
 import { UserDocument } from '../types';
 
 export type BadgeTier = 'Beginner' | 'Intermediate' | 'Advanced' | 'Master';
@@ -54,7 +65,7 @@ export const BADGE_DEFINITIONS: BadgeDefinition[] = [
     name: 'Phishing Detector',
     description: 'Detect 5 phishing attempts.',
     tier: 'Intermediate',
-    icon: Fish,
+    icon: FishSymbol,
     colorClass: 'text-green-400 border-green-400/50 bg-green-400/10 shadow-[0_0_15px_rgba(74,222,128,0.5)]',
     shapeClass: 'rounded-xl',
     maxProgress: 5,
@@ -76,7 +87,7 @@ export const BADGE_DEFINITIONS: BadgeDefinition[] = [
     name: 'Security Auditor',
     description: 'Use security tools 20 times.',
     tier: 'Advanced',
-    icon: Shield,
+    icon: FileSearch,
     colorClass: 'text-orange-400 border-orange-400/50 bg-orange-400/10 shadow-[0_0_15px_rgba(251,146,60,0.5)]',
     shapeClass: 'rounded-tl-2xl rounded-br-2xl rounded-tr-sm rounded-bl-sm',
     maxProgress: 20,
@@ -87,7 +98,7 @@ export const BADGE_DEFINITIONS: BadgeDefinition[] = [
     name: 'Threat Hunter',
     description: 'Analyze 10 phishing attempts.',
     tier: 'Advanced',
-    icon: Search,
+    icon: Target,
     colorClass: 'text-orange-400 border-orange-400/50 bg-orange-400/10 shadow-[0_0_15px_rgba(251,146,60,0.5)]',
     shapeClass: 'rounded-tl-2xl rounded-br-2xl rounded-tr-sm rounded-bl-sm',
     maxProgress: 10,
@@ -98,7 +109,7 @@ export const BADGE_DEFINITIONS: BadgeDefinition[] = [
     name: 'Elite Defender',
     description: 'Complete all 50 Learning Hub topics.',
     tier: 'Master',
-    icon: Target,
+    icon: ShieldPlus,
     colorClass: 'text-yellow-400 border-yellow-400/50 bg-yellow-400/10 shadow-[0_0_15px_rgba(250,204,21,0.5)]',
     shapeClass: 'rounded-t-full rounded-b-md',
     maxProgress: 50,
@@ -109,7 +120,7 @@ export const BADGE_DEFINITIONS: BadgeDefinition[] = [
     name: 'CREDENTIA Master',
     description: 'Unlock all other badges.',
     tier: 'Master',
-    icon: Crown,
+    icon: Award,
     colorClass: 'text-yellow-400 border-yellow-400/50 bg-yellow-400/10 shadow-[0_0_15px_rgba(250,204,21,0.5)]',
     shapeClass: 'rounded-t-full rounded-b-md',
     maxProgress: 8,

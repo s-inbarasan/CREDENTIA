@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
-  Image as ImageIcon, 
+  Aperture as ApertureIcon, 
   Upload, 
   Shield, 
   ShieldAlert, 
@@ -9,7 +9,7 @@ import {
   MapPin, 
   Calendar, 
   Camera, 
-  Cpu, 
+  Monitor, 
   FileText, 
   Trash2, 
   Download, 
@@ -88,6 +88,7 @@ export const ExifAnalyzer: React.FC = () => {
       try {
         // Extract EXIF using exifr
         const allTags = await exifr.parse(selectedFile, true);
+        const gpsData = await exifr.gps(selectedFile).catch(() => null);
         
         const img = new Image();
         img.onload = () => {
@@ -101,8 +102,8 @@ export const ExifAnalyzer: React.FC = () => {
             model: allTags?.Model,
             software: allTags?.Software,
             dateTime: allTags?.DateTimeOriginal?.toString() || allTags?.DateTime?.toString(),
-            lat: allTags?.latitude,
-            lng: allTags?.longitude,
+            lat: gpsData?.latitude || allTags?.latitude,
+            lng: gpsData?.longitude || allTags?.longitude,
             raw: allTags
           });
           setIsAnalyzing(false);
@@ -165,7 +166,7 @@ export const ExifAnalyzer: React.FC = () => {
       <div className="p-5 border-b border-white/5 flex items-center justify-between bg-white/5">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-cyber-blue/10 flex items-center justify-center">
-            <ImageIcon className="w-5 h-5 text-cyber-blue" />
+            <ApertureIcon className="w-5 h-5 text-cyber-blue" />
           </div>
           <div>
             <h3 className="text-sm font-bold">Metadata Analyzer</h3>
@@ -226,7 +227,7 @@ export const ExifAnalyzer: React.FC = () => {
                 <div className="grid gap-2">
                   {exifData ? (
                     <>
-                      {exifData.lat && (
+                      {exifData.lat !== undefined && (
                         <div className="bg-cyber-red/10 border border-cyber-red/30 p-3 rounded-xl flex items-start gap-3">
                           <ShieldAlert className="w-4 h-4 text-cyber-red shrink-0 mt-0.5" />
                           <div>
@@ -253,7 +254,7 @@ export const ExifAnalyzer: React.FC = () => {
                           </div>
                         </div>
                       )}
-                      {!exifData.lat && !exifData.dateTime && !exifData.make && (
+                      {exifData.lat === undefined && !exifData.dateTime && !exifData.make && !exifData.model && (
                         <div className="bg-cyber-green/10 border border-cyber-green/30 p-3 rounded-xl flex items-start gap-3">
                           <ShieldCheck className="w-4 h-4 text-cyber-green shrink-0 mt-0.5" />
                           <div>
@@ -269,18 +270,12 @@ export const ExifAnalyzer: React.FC = () => {
                 </div>
               </div>
 
-              <div className="flex gap-3">
+              <div className="flex gap-3 pt-2">
                 <button 
                   onClick={removeMetadata}
-                  className="flex-1 bg-cyber-red/20 text-cyber-red border border-cyber-red/30 py-3 rounded-xl text-xs font-bold hover:bg-cyber-red/30 transition-all flex items-center justify-center gap-2"
+                  className="w-full bg-cyber-blue text-black py-4 rounded-xl text-sm font-bold hover:bg-cyber-blue/90 transition-all flex items-center justify-center gap-3 shadow-[0_0_20px_rgba(0,255,255,0.2)]"
                 >
-                  <Trash2 className="w-4 h-4" /> Remove Metadata
-                </button>
-                <button 
-                  onClick={removeMetadata}
-                  className="flex-1 bg-cyber-blue text-black py-3 rounded-xl text-xs font-bold hover:bg-cyber-blue/80 transition-all flex items-center justify-center gap-2"
-                >
-                  <Download className="w-4 h-4" /> Download Cleaned
+                  <Download className="w-5 h-5" /> Download Cleaned Image
                 </button>
               </div>
             </div>
@@ -320,26 +315,26 @@ export const ExifAnalyzer: React.FC = () => {
                   Embedded Metadata
                 </h4>
                 <div className="bg-black/20 rounded-xl border border-white/5 p-4 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Cpu className="w-4 h-4 text-white/20" />
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-4">
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Monitor className="w-4 h-4 text-white/20" />
                       <span className="text-xs text-white/60">Device</span>
                     </div>
-                    <span className="text-xs font-bold">{exifData?.model ? `${exifData.make} ${exifData.model}` : 'Not available'}</span>
+                    <span className="text-xs font-bold sm:text-right break-words">{exifData?.model ? `${exifData.make} ${exifData.model}` : 'Not available'}</span>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
+                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-1 sm:gap-4">
+                    <div className="flex items-center gap-2 shrink-0 mt-0.5">
                       <Calendar className="w-4 h-4 text-white/20" />
                       <span className="text-xs text-white/60">Timestamp</span>
                     </div>
-                    <span className="text-xs font-bold">{exifData?.dateTime || 'Time not available'}</span>
+                    <span className="text-xs font-bold sm:text-right break-words">{exifData?.dateTime || 'Time not available'}</span>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <ImageIcon className="w-4 h-4 text-white/20" />
+                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-1 sm:gap-4">
+                    <div className="flex items-center gap-2 shrink-0 mt-0.5">
+                      <ApertureIcon className="w-4 h-4 text-white/20" />
                       <span className="text-xs text-white/60">Software</span>
                     </div>
-                    <span className="text-xs font-bold truncate max-w-[150px]">{exifData?.software || 'Not available'}</span>
+                    <span className="text-xs font-bold sm:text-right break-all">{exifData?.software || 'Not available'}</span>
                   </div>
                 </div>
               </div>
@@ -351,16 +346,16 @@ export const ExifAnalyzer: React.FC = () => {
                   Geospatial Data
                 </h4>
                 <div className="bg-black/20 rounded-xl border border-white/5 p-4">
-                  {exifData?.lat ? (
+                  {exifData?.lat !== undefined && exifData?.lng !== undefined ? (
                     <div className="space-y-4">
                       <div className="grid grid-cols-2 gap-4">
                         <div>
                           <p className="text-[10px] text-white/40 uppercase mb-1">Latitude</p>
-                          <p className="text-xs font-mono text-cyber-red">{exifData.lat.toFixed(6)}</p>
+                          <p className="text-xs font-mono text-cyber-red">{Number(exifData.lat).toFixed(6)}</p>
                         </div>
                         <div>
                           <p className="text-[10px] text-white/40 uppercase mb-1">Longitude</p>
-                          <p className="text-xs font-mono text-cyber-red">{exifData.lng?.toFixed(6)}</p>
+                          <p className="text-xs font-mono text-cyber-red">{Number(exifData.lng).toFixed(6)}</p>
                         </div>
                       </div>
                       <a 

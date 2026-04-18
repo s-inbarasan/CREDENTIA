@@ -1,11 +1,11 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence, useMotionValue, useTransform, useSpring } from 'motion/react';
 import { 
-  BookOpen, Shield, Lock, Key, Eye, AlertTriangle, Server, Globe, 
+  Library, ShieldCheck, Lock, UserSearch, Eye, AlertTriangle, HardDrive, Globe, 
   Database, Cpu, Wifi, CheckCircle, ArrowLeft, ChevronRight, 
   PlayCircle, Smartphone, Mail, EyeOff, UserCheck, Zap, Award, 
   Flame, Target, LayoutGrid, Layers, Network, Star, Trophy,
-  LucideIcon, Brain, ShieldCheck, XCircle, Bot, Copy, Briefcase
+  LucideIcon, Brain, XCircle, Bot, Copy, Briefcase, Atom, Cloud, Box, Ghost, Binoculars, Scan
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '../utils/cn';
@@ -15,13 +15,16 @@ import { CyberOrb } from './CyberOrb';
 
 interface LearningHubProps {
   userDoc: UserDocument | null;
-  onCompleteTopic: (topicId: string, xpReward: number) => void;
-  onPassQuiz: (topicId: string, score: number) => void;
+  onTopicMastered: (topicId: string, score: number, xpReward: number) => void;
+  onCompleteTopic?: (topicId: string, xpReward: number) => void;
+  onPassQuiz?: (topicId: string, score: number) => void;
   onQuizStateChange?: (isActive: boolean) => void;
 }
 
 const ICONS: Record<string, LucideIcon> = {
-  Shield, Lock, Key, Eye, AlertTriangle, Server, Globe, Database, Cpu, Wifi, BookOpen, Smartphone, Mail, EyeOff, UserCheck, Zap, Award, Flame, Target, LayoutGrid, Layers, Network, Star, Trophy, Brain, ShieldCheck
+  ShieldCheck, Lock, Scan, Binoculars, AlertTriangle, Cloud, Globe, Database, Atom, Wifi, 
+  Library, Smartphone, Mail, EyeOff, UserCheck, Zap, Award, Flame, Target, LayoutGrid, 
+  Box, Network, Star, Trophy, Brain, Ghost
 };
 
 const COURSES = [
@@ -31,7 +34,8 @@ const COURSES = [
     difficulty: "Beginner",
     hook: "Start your cybersecurity journey here. Learn the essential mindset, privacy practices, and defensive tools to protect yourself online.",
     target: "Everyone (Foundational skills).",
-    icon: "Brain",
+    icon: "ShieldCheck",
+    image: "https://images.unsplash.com/photo-1550751827-4bd374c3f58b?auto=format&fit=crop&w=600&q=80",
     color: "text-cyber-green",
     bg: "bg-cyber-green/10",
     border: "border-cyber-green/20",
@@ -42,8 +46,9 @@ const COURSES = [
     title: "The Synthetic Web & AI Defense",
     difficulty: "Beginner",
     hook: "You can no longer trust your eyes or ears. This course teaches users how to survive in an internet flooded with AI-generated content, autonomous hacking agents, and deepfakes.",
-    target: "Everyone (Mandatory survival skills).",
-    icon: "Eye",
+    target: "Everyone.",
+    icon: "Binoculars",
+    image: "https://images.unsplash.com/photo-1620712943543-bcc4688e7485?auto=format&fit=crop&w=600&q=80",
     color: "text-cyber-blue",
     bg: "bg-cyber-blue/10",
     border: "border-cyber-blue/20",
@@ -54,8 +59,9 @@ const COURSES = [
     title: "Identity 3.0 & The Passwordless Future",
     difficulty: "Intermediate",
     hook: "Passwords are dead. This course transitions users from outdated security models to the modern standard of biometric and cryptographic identity.",
-    target: "General users and corporate employees.",
-    icon: "Key",
+    target: "General users.",
+    icon: "Scan",
+    image: "https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?auto=format&fit=crop&w=600&q=80",
     color: "text-cyber-purple",
     bg: "bg-cyber-purple/10",
     border: "border-cyber-purple/20",
@@ -66,8 +72,9 @@ const COURSES = [
     title: "Spatial Privacy & Zero-Trust Living",
     difficulty: "Intermediate",
     hook: "The internet is no longer just on a screen; it’s in your home, your car, and your headset. This course secures the physical-digital bridge.",
-    target: "Smart home owners, remote workers, and AR/VR users.",
-    icon: "Layers",
+    target: "Smart home owners.",
+    icon: "Box",
+    image: "https://images.unsplash.com/photo-1558494949-ef010cbdcc31?auto=format&fit=crop&w=600&q=80",
     color: "text-cyber-yellow",
     bg: "bg-cyber-yellow/10",
     border: "border-cyber-yellow/20",
@@ -77,9 +84,10 @@ const COURSES = [
     id: "C-CSD",
     title: "Cloud Sovereignty & The Data Wars",
     difficulty: "Advanced",
-    hook: "Data is the new oil, and you are the well. This course teaches users how to reclaim their digital footprint and secure their data in other people's computers (the Cloud).",
-    target: "Freelancers, privacy advocates, and IT beginners.",
-    icon: "Server",
+    hook: "Data is the new oil, and you are the well. This course teaches users how to reclaim their digital footprint and secure their data.",
+    target: "Privacy advocates.",
+    icon: "Cloud",
+    image: "https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&w=600&q=80",
     color: "text-cyber-red",
     bg: "bg-cyber-red/10",
     border: "border-cyber-red/20",
@@ -90,8 +98,9 @@ const COURSES = [
     title: "Quantum-Ready Foundations",
     difficulty: "Expert",
     hook: "Looking over the horizon. This is a prestige course that prepares forward-thinking users for the next massive shift in global technology.",
-    target: "Tech enthusiasts, developers, and advanced learners.",
-    icon: "Cpu",
+    target: "Tech enthusiasts.",
+    icon: "Atom",
+    image: "https://images.unsplash.com/photo-1635070041078-e363dbe005cb?auto=format&fit=crop&w=600&q=80",
     color: "text-cyber-green",
     bg: "bg-cyber-green/10",
     border: "border-cyber-green/20",
@@ -257,7 +266,7 @@ const SkillTreeModal = ({ isOpen, onClose, completedTopics }: { isOpen: boolean,
   );
 };
 
-export function LearningHub({ userDoc, onCompleteTopic, onPassQuiz, onQuizStateChange }: LearningHubProps) {
+export function LearningHub({ userDoc, onTopicMastered, onCompleteTopic, onPassQuiz, onQuizStateChange }: LearningHubProps) {
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
   const [isCourseStarted, setIsCourseStarted] = useState(false);
   const [selectedTopic, setSelectedTopic] = useState<Topic | null>(null);
@@ -341,6 +350,7 @@ export function LearningHub({ userDoc, onCompleteTopic, onPassQuiz, onQuizStateC
     setShowQuizResult(false);
     setSelectedAnswer(null);
     setIsAnswerCorrect(null);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleAnswerSubmit = (index: number) => {
@@ -375,16 +385,15 @@ export function LearningHub({ userDoc, onCompleteTopic, onPassQuiz, onQuizStateC
     const percentage = (quizScore / totalQuestions) * 100;
     
     if (quizScore === totalQuestions) {
-      onPassQuiz(activeQuiz.id, percentage);
-      if (!completedTopics.includes(activeQuiz.id)) {
-        const courseModules = LEARNING_TOPICS.filter(t => t.chapterId === activeQuiz.chapterId);
-        const completedInCourse = courseModules.filter(t => completedTopics.includes(t.id)).length;
-        const isCourseComplete = completedInCourse === 3;
-        const totalXp = isCourseComplete ? 150 : 50;
-        onCompleteTopic(activeQuiz.id, totalXp);
-      }
+      const courseModules = LEARNING_TOPICS.filter(t => t.chapterId === activeQuiz.chapterId);
+      const willBeComplete = courseModules.filter(t => completedTopics.includes(t.id) || t.id === activeQuiz.id).length === courseModules.length;
+      const totalXp = willBeComplete ? 150 : 50;
+      
+      onTopicMastered(activeQuiz.id, percentage, totalXp);
     }
+    
     handleBack();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const getLevelColor = (level: string): { text: string; bg: string; border: string; glow: string } => {
@@ -513,7 +522,7 @@ export function LearningHub({ userDoc, onCompleteTopic, onPassQuiz, onQuizStateC
   if (selectedCourseId && !selectedTopic) {
     const course = COURSES.find(c => c.id === selectedCourseId)!;
     const courseTopics = LEARNING_TOPICS.filter(t => t.chapterId === selectedCourseId);
-    const Icon = ICONS[course.icon] || BookOpen;
+    const Icon = ICONS[course.icon] || Library;
 
     // STEP 2: Course Overview Screen
     return (
@@ -654,7 +663,7 @@ export function LearningHub({ userDoc, onCompleteTopic, onPassQuiz, onQuizStateC
 
   // --- Render Topic Detail ---
   if (selectedTopic) {
-    const Icon = ICONS[selectedTopic.icon] || BookOpen;
+    const Icon = ICONS[selectedTopic.icon] || Library;
     const colors = getLevelColor(selectedTopic.level);
     return (
       <motion.div className="fixed inset-0 z-[100] bg-cyber-bg overflow-y-auto pb-24">
@@ -839,7 +848,7 @@ export function LearningHub({ userDoc, onCompleteTopic, onPassQuiz, onQuizStateC
                         {section.type === 'summary' && (
                           <div className="bg-white/5 p-5 sm:p-8 rounded-2xl sm:rounded-3xl border border-white/10">
                             <h3 className="text-lg sm:text-xl font-bold text-cyber-blue mb-4 flex items-center gap-2">
-                              <BookOpen className="w-5 h-5 sm:w-6 h-6" />
+                              <Library className="w-5 h-5 sm:w-6 h-6" />
                               {cleanText(section.title)}
                             </h3>
                             {section.content && (
@@ -1003,17 +1012,15 @@ export function LearningHub({ userDoc, onCompleteTopic, onPassQuiz, onQuizStateC
         </button>
       </div>
 
-      {/* 3. The Library (Course Grid) */}
+      {/* 3. The Library (Course Grid) - Compact with Images */}
       <section className="space-y-6 sm:space-y-8">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-6">
           {COURSES.map((course) => {
-            const Icon = ICONS[course.icon] || BookOpen;
             const courseTopics = LEARNING_TOPICS.filter(t => t.chapterId === course.id);
             const courseCompletedCount = courseTopics.filter(t => completedTopics.includes(t.id)).length;
-            const progress = (courseCompletedCount / courseTopics.length) * 100;
-            
-            // ALL COURSES UNLOCKED BY DEFAULT
+            const progress = courseTopics.length > 0 ? (courseCompletedCount / courseTopics.length) * 100 : 0;
             const isLocked = false;
+            const Icon = ICONS[course.icon] || Library;
 
             return (
               <TiltCard 
@@ -1022,40 +1029,36 @@ export function LearningHub({ userDoc, onCompleteTopic, onPassQuiz, onQuizStateC
                 onClick={() => handleCourseClick(course.id)}
                 className="h-full"
               >
-                <div className="bg-cyber-card p-6 sm:p-8 rounded-3xl sm:rounded-[2.5rem] border border-white/5 h-full flex flex-col justify-between hover:border-white/20 transition-all relative overflow-hidden group">
-                  <div className="relative z-10">
-                    <div className="flex justify-between items-start mb-6 sm:mb-8">
-                      <div className={cn("p-4 sm:p-5 rounded-xl sm:rounded-2xl shadow-lg transition-transform group-hover:scale-110", course.bg, course.color, course.glow)}>
-                        <Icon className="w-6 h-6 sm:w-8 h-8" />
+                <div className="bg-cyber-card rounded-2xl sm:rounded-3xl border border-white/5 h-full flex flex-col overflow-hidden hover:border-white/20 transition-all group relative">
+                  <div className="h-32 sm:h-40 w-full relative overflow-hidden bg-black/50">
+                    <img 
+                      src={course.image} 
+                      alt={course.title}
+                      className="object-cover w-full h-full opacity-60 group-hover:opacity-100 transition-opacity duration-500 group-hover:scale-110"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-[#0A0D14] to-transparent opacity-100" />
+                    <div className="absolute bottom-3 left-4 right-4 flex items-center justify-between">
+                      <div className={cn("p-2 rounded-xl backdrop-blur-md bg-black/40", course.color)}>
+                        <Icon className="w-5 h-5 sm:w-6 sm:h-6" />
                       </div>
-                      <div className="text-right">
-                        <div className="text-xl sm:text-2xl font-bold text-white">{Math.round(progress)}%</div>
-                        <div className="text-[8px] uppercase tracking-widest text-white/30">Mastery</div>
-                      </div>
-                    </div>
-                    <div className="space-y-2 sm:space-y-3">
-                      <h4 className="text-xl sm:text-2xl font-bold leading-tight text-white">{course.title}</h4>
-                      <p className="text-xs sm:text-sm leading-relaxed text-white/40 line-clamp-2">{course.hook}</p>
                     </div>
                   </div>
                   
-                  <div className="mt-8 sm:mt-10 flex items-center justify-between relative z-10">
-                    <div className="flex items-center gap-2 sm:gap-3">
-                      <div className="flex -space-x-1.5 sm:-space-x-2">
-                        {[1, 2, 3, 4].map((m) => (
-                          <div 
-                            key={m} 
-                            className={cn(
-                              "w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full border-2 border-cyber-bg transition-colors",
-                              m <= courseCompletedCount ? "bg-cyber-blue" : "bg-white/10"
-                            )} 
-                          />
-                        ))}
+                  <div className="p-5 sm:p-6 flex flex-col justify-between flex-1 bg-[#0A0D14] relative z-10 -mt-1">
+                    <h4 className="text-white font-bold text-lg sm:text-xl leading-tight mb-2">{course.title}</h4>
+                    <p className="text-xs sm:text-sm text-white/50 mb-6 line-clamp-2">{course.hook}</p>
+                    
+                    <div>
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="text-[10px] sm:text-xs text-white/40 uppercase tracking-wider">{course.difficulty}</span>
+                        <span className={cn("text-[10px] sm:text-xs font-bold", course.color)}>{Math.round(progress)}% Mastery</span>
                       </div>
-                      <span className="text-[10px] sm:text-xs font-mono text-white/20">{courseCompletedCount}/4 Modules</span>
-                    </div>
-                    <div className="flex items-center gap-1 sm:gap-2 text-[10px] sm:text-xs font-bold text-cyber-blue uppercase tracking-widest group-hover:translate-x-2 transition-transform">
-                      {progress === 100 ? 'Review' : 'Enter'} <ChevronRight className="w-3 h-3 sm:w-4 h-4" />
+                      <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
+                        <div 
+                          className={cn("h-full transition-all duration-1000", course.bg.replace('/10', ''))} 
+                          style={{ width: `${progress}%` }} 
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>

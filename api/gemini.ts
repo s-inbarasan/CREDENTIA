@@ -9,9 +9,11 @@ export default async function handler(
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    return res.status(500).json({ error: "GEMINI_API_KEY is not configured on the server" });
+  let rawKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY || '';
+  const apiKey = rawKey.replace(/^["']|["']$/g, '').trim();
+
+  if (!apiKey || apiKey === 'undefined' || apiKey === 'null') {
+    return res.status(500).json({ error: "API Key is not configured or is null." });
   }
 
   const { prompt, history } = req.body;
@@ -30,8 +32,9 @@ export default async function handler(
 
     const text = result.response.text();
     return res.status(200).json({ text: text || "I'm sorry, I couldn't process that request." });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Gemini Vercel Error:", error);
-    return res.status(500).json({ error: "Failed to process AI request" });
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    return res.status(500).json({ error: `Failed to process AI request. Details: ${errorMessage}` });
   }
 }

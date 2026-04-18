@@ -37,57 +37,50 @@ export const TermsOfService: React.FC<TermsOfServiceProps> = ({ isOpen, onClose 
               <section className="space-y-3">
                 <h3 className="text-white font-bold flex items-center gap-2">
                   <ScrollText className="w-4 h-4 text-cyber-blue" />
-                  1. Acceptance of Terms
+                  1. Agreement Scope
                 </h3>
                 <p>
-                  By accessing or using Credentia, you agree to be bound by these Terms of Service. 
-                  This platform is designed for educational purposes in the field of cybersecurity. 
-                  Unauthorized use of this platform to attempt to gain access to systems you do not own 
-                  is strictly prohibited.
+                  By authenticating with the CREDENTIA platform, you enter into a binding legal agreement. This platform is a simulated cybersecurity environment provided strictly for "White Hat" educational development and defensive research.
                 </p>
               </section>
 
               <section className="space-y-3">
                 <h3 className="text-white font-bold flex items-center gap-2">
                   <ShieldAlert className="w-4 h-4 text-cyber-blue" />
-                  2. Ethical Usage Policy
+                  2. Rules of Engagement (ROE)
                 </h3>
                 <p>
-                  As a user of Credentia, you pledge to:
+                  Usage of the learning modules and analytical tools is governed by the following ROE:
                 </p>
                 <ul className="list-disc pl-5 space-y-1">
-                  <li>Use the knowledge gained for defensive and educational purposes only.</li>
-                  <li>Never use tools or techniques learned here for illegal activities.</li>
-                  <li>Respect the privacy and security of other users and third parties.</li>
+                  <li><span className="text-white/90">Zero Malice:</span> You shall not utilize knowledge, scripts, or methodologies acquired here to engage in unauthorized access to any system, network, or data you do not explicitly own.</li>
+                  <li><span className="text-white/90">Non-Automation:</span> You shall not deploy automated scrapers or stress-testing scripts against CREDENTIA infrastructure.</li>
+                  <li><span className="text-white/90">Identity Integrity:</span> You are responsible for all actions occurring under your authenticated credentials.</li>
                 </ul>
               </section>
 
               <section className="space-y-3">
                 <h3 className="text-white font-bold flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-cyber-blue" />
-                  3. Intellectual Property
+                  <Scale className="w-4 h-4 text-cyber-blue" />
+                  3. Disclaimer of Liability
                 </h3>
                 <p>
-                  All content provided on Credentia, including lessons, interactive labs, and the AI Mentor 
-                  responses, is the intellectual property of Credentia. You may use this content for 
-                  personal, non-commercial learning only.
+                  CREDENTIA provides educational simulations. We are NOT responsible for the application of these skills in real-world scenarios. We provide no guarantee of professional certification or employment outcome. All "Security Scores" and "Analyses" are for training evaluation only.
                 </p>
               </section>
 
               <section className="space-y-3">
                 <h3 className="text-white font-bold flex items-center gap-2">
-                  <X className="w-4 h-4 text-cyber-blue" />
-                  4. Limitation of Liability
+                  <CheckCircle2 className="w-4 h-4 text-cyber-blue" />
+                  4. Termination of Access
                 </h3>
                 <p>
-                  Credentia is provided "as is" without any warranties. We are not liable for any 
-                  actions taken by users outside of the platform or for any security breaches 
-                  that occur on a user's personal accounts.
+                  Violation of the ROE or detection of behavior inconsistent with ethical cybersecurity practices will result in immediate session termination and permanent revocation of your security clearance.
                 </p>
               </section>
 
               <section className="pt-4 border-t border-white/5 text-[10px] text-white/40 italic">
-                Last Updated: April 18, 2026. Credentia Cybersecurity Platform.
+                Regulatory Reference: CRED-SEC-TOS-2026. Non-Negotiable Terms.
               </section>
             </div>
           </motion.div>

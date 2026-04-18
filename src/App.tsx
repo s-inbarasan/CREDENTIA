@@ -2,15 +2,23 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Logo } from './components/Logo';
 import { ImageCropper } from './components/ImageCropper';
 import { 
-  Shield, 
+  Aperture as ApertureIcon,
+  Terminal,
+  AlertTriangle,
+  Shield,
+  User,
+  BookOpen,
+  Wrench,
+  Home,
   MessageSquare, 
-  Lock, 
-  AlertTriangle, 
+  Fingerprint, 
+  AlertOctagon, 
   Zap, 
   Send, 
-  User, 
+  CircleUser, 
   Bot, 
   ChevronRight, 
+  ChevronLeft,
   RefreshCw,
   Info,
   CheckCircle2,
@@ -33,14 +41,12 @@ import {
   Eye,
   ShieldAlert,
   PlayCircle,
-  BookOpen,
-  Home,
-  Wrench,
   UserCheck,
   ShieldCheck,
   Database,
   FileSearch,
-  FileWarning
+  FileWarning,
+  Library
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { clsx, type ClassValue } from 'clsx';
@@ -57,6 +63,7 @@ import { ChatPanel } from './components/ChatPanel';
 import { ThreeBackground } from './components/ThreeBackground';
 import { Onboarding } from './components/Onboarding';
 import { ExifAnalyzer } from './components/ExifAnalyzer';
+import { SecuritySuite } from './components/SecuritySuite';
 import { PrivacyPolicy } from './components/PrivacyPolicy';
 import { TermsOfService } from './components/TermsOfService';
 import { BADGE_DEFINITIONS, checkNewBadges } from './utils/badges';
@@ -115,6 +122,7 @@ interface AppUser {
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<'home' | 'tools' | 'learningHub' | 'profile'>('home');
+  const [selectedToolId, setSelectedToolId] = useState<string | null>(null);
   const [user, setUser] = useState<AppUser | null>(null);
   const [userDoc, setUserDoc] = useState<UserDocument | null>(null);
   const [isGuest, setIsGuest] = useState(false);
@@ -192,6 +200,64 @@ export default function App() {
       } catch (error) {
         console.error('Error adding recent activity:', error);
       }
+    }
+  };
+
+  const handleTopicMastered = async (topicId: string, score: number, xpReward: number) => {
+    if (!user || !userDoc) return;
+    
+    // 1. Calculate new Scores
+    const currentScores = userDoc.quizScores || {};
+    const newScores = { ...currentScores, [topicId]: Math.max(score, currentScores[topicId] || 0) };
+    
+    // 2. Calculate new Completed Topics
+    const currentTopics = userDoc.completedTopics || [];
+    const isNewCompletion = !currentTopics.includes(topicId);
+    const newTopics = isNewCompletion ? [...currentTopics, topicId] : currentTopics;
+    
+    // 3. Calculate new XP & Stats
+    const newPoints = userDoc.xp + (isNewCompletion ? xpReward : 0);
+    const newStats = {
+      ...userDoc.stats,
+      topicsCompleted: userDoc.stats?.topicsCompleted + (isNewCompletion ? 1 : 0),
+      quizzesPassed: (userDoc.stats?.quizzesPassed || 0) + 1,
+      actionsTaken: (userDoc.stats?.actionsTaken || 0) + 1
+    };
+    
+    // 4. Calculate Badges
+    const newBadges = checkNewBadges(newStats, userDoc.badges || []);
+    const mergedBadges = [...(userDoc.badges || []), ...newBadges];
+    
+    // Optimistic UI Update Unified
+    setUserDoc(prev => prev ? {
+      ...prev,
+      quizScores: newScores,
+      completedTopics: newTopics,
+      xp: newPoints,
+      stats: newStats,
+      badges: mergedBadges
+    } : null);
+    
+    try {
+      addRecentActivity(`Mastered: ${topicId.replace(/_/g, ' ')}`, 'topic');
+      
+      await supabase
+        .from('profiles')
+        .update({
+          quiz_scores: newScores,
+          completed_topics: newTopics,
+          xp: newPoints,
+          stats: newStats,
+          badges: mergedBadges
+        })
+        .eq('id', user.uid);
+      
+      if (newBadges.length > 0) {
+        setShowBadgeNotification(newBadges[0]);
+        setTimeout(() => setShowBadgeNotification(null), 3000);
+      }
+    } catch (error) {
+      console.error('Error in handleTopicMastered:', error);
     }
   };
 
@@ -771,6 +837,13 @@ export default function App() {
       
       if (error) throw error;
 
+      // Optimistic UI Update for Profile
+      setUserDoc(prev => prev ? {
+        ...prev,
+        name: editDisplayName || prev.name,
+        profileImage: editPhotoURL || prev.profileImage || ''
+      } : prev);
+
       setIsEditingProfile(false);
       toast.success('Profile Updated', {
         description: 'Your agent identity has been updated.'
@@ -1177,15 +1250,10 @@ export default function App() {
               )}
             </div>
             <div className="flex items-center gap-1.5 md:gap-2">
-              <Logo size="xs" glow className="md:hidden" />
-              <Logo size="sm" glow className="hidden md:block" />
               <div>
                 <h1 className="text-sm md:text-lg font-bold tracking-tight leading-none truncate max-w-[120px] md:max-w-none">
                   {userDoc?.name || 'CREDENTIA'}
                 </h1>
-                <p className="text-[8px] md:text-[10px] text-cyber-blue font-semibold uppercase tracking-[0.1em] md:tracking-[0.2em] mt-0.5 md:mt-1">
-                  Level {userDoc?.level || 1}
-                </p>
               </div>
             </div>
           </div>
@@ -1221,7 +1289,7 @@ export default function App() {
       </header>
 
       {/* Main Content */}
-      <main className={cn("flex-1 overflow-y-auto scrollbar-hide p-4 space-y-6 max-w-5xl mx-auto w-full", "pb-24")}>
+      <main className={cn("flex-1 overflow-y-auto scrollbar-hide p-4 space-y-6 max-w-5xl mx-auto w-full", "pb-36 md:pb-32")}>
         {activeTab === 'home' ? (
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
@@ -1436,268 +1504,255 @@ export default function App() {
             animate={{ opacity: 1, y: 0 }}
             className="space-y-6"
           >
-            <div className="px-2">
-              <h2 className="text-xl font-bold">Security Tools</h2>
-              <p className="text-xs text-white/40">Analyze threats, passwords, and phishing attempts.</p>
+            <div className="px-2 flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-bold">Security Tools</h2>
+                <p className="text-xs text-white/40">Professional-grade diagnostic & forensic utilities.</p>
+              </div>
+              {selectedToolId && (
+                <button 
+                  onClick={() => setSelectedToolId(null)}
+                  className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-cyber-blue bg-cyber-blue/10 px-3 py-1.5 rounded-full hover:bg-cyber-blue/20 transition-all"
+                >
+                  <ChevronLeft className="w-3 h-3" /> Back to Tools
+                </button>
+              )}
             </div>
 
-            {/* Analyzers */}
-            <section className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Password Analyzer */}
-              <div className="bg-cyber-card p-5 rounded-2xl border border-white/5 relative overflow-hidden">
-                {/* Points indicator */}
-                <div className="absolute top-4 right-4 text-[10px] text-cyber-blue font-bold flex items-center gap-1 bg-cyber-blue/10 px-2 py-1 rounded-full">
-                  <Star className="w-3 h-3" /> +XP
-                </div>
-                <h3 className="text-sm font-bold mb-4 flex items-center gap-2">
-                  <Lock className="w-4 h-4 text-cyber-blue" />
-                  Password Analyzer
-                </h3>
-                <div className="relative flex gap-2 mb-4">
-                  <div className="relative flex-1">
-                    <input 
-                      type={showPassword ? "text" : "password"}
-                      placeholder="Enter password to test..."
-                      value={passwordInput}
-                      onChange={(e) => setPasswordInput(e.target.value)}
-                      className="w-full bg-black/30 border border-white/10 rounded-xl pl-4 pr-10 py-2 text-sm focus:outline-none focus:border-cyber-blue/50"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/60 transition-colors"
-                    >
-                      {showPassword ? <X className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                  <button 
-                    onClick={onAnalyzePassword}
-                    disabled={isAnalyzingPassword}
-                    className="bg-cyber-blue text-black font-bold px-4 py-2 rounded-xl text-sm hover:bg-cyber-blue/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                  >
-                    {isAnalyzingPassword ? (
-                      <>
-                        <RefreshCw className="w-4 h-4 animate-spin" />
-                        Scanning...
-                      </>
-                    ) : 'Test'}
-                  </button>
-                </div>
-                {passAnalysis && (
-                  <motion.div 
-                    initial={{ opacity: 0, y: 10 }} 
-                    animate={{ opacity: 1, y: 0 }} 
-                    transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
-                    className="space-y-3"
-                  >
-                    <div className="flex justify-between items-center px-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-white/50">Strength:</span>
-                        <span className={cn(
-                          "text-xs font-bold px-2 py-0.5 rounded-full",
-                          passAnalysis.strength === 'Strong' ? "text-cyber-green bg-cyber-green/10" :
-                          passAnalysis.strength === 'Medium' ? "text-cyber-yellow bg-cyber-yellow/10" : "text-cyber-red bg-cyber-red/10"
-                        )}>{passAnalysis.strength}</span>
-                      </div>
-                      <span className="text-[10px] font-mono opacity-40">SCORE: {passAnalysis.score}/100</span>
-                    </div>
-                    <div className="w-full bg-white/5 h-1.5 rounded-full overflow-hidden">
-                      <motion.div 
-                        initial={{ width: 0 }}
-                        animate={{ width: `${passAnalysis.score}%` }}
-                        transition={{ duration: 0.8, ease: [0.23, 1, 0.32, 1] }}
-                        className={cn(
-                          "h-full shadow-[0_0_10px_rgba(0,0,0,0.5)]",
-                          passAnalysis.score > 80 ? "bg-cyber-green shadow-cyber-green/20" :
-                          passAnalysis.score > 40 ? "bg-cyber-yellow shadow-cyber-yellow/20" : "bg-cyber-red shadow-cyber-red/20"
-                        )}
-                      />
-                    </div>
-                    <div className="flex items-center gap-2 text-[10px] text-white/40 italic bg-black/20 p-2 rounded-lg border border-white/5">
-                      <Zap className="w-3 h-3 text-cyber-yellow" />
-                      Estimated crack time: <span className="text-white/70 font-bold ml-1">{passAnalysis.crackTime}</span>
-                    </div>
-                    {passAnalysis.suggestions.length > 0 && (
-                      <div className="space-y-2">
-                        <p className="text-[10px] font-bold uppercase text-white/30 ml-1">Security Suggestions</p>
-                        <ul className="text-[10px] space-y-1.5">
-                          {passAnalysis.suggestions.map((s, i) => (
-                            <motion.li 
-                              key={i} 
-                              initial={{ x: -5, opacity: 0 }}
-                              animate={{ x: 0, opacity: 1 }}
-                              transition={{ delay: i * 0.1 }}
-                              className="flex items-start gap-2 text-cyber-yellow/70"
-                            >
-                              <ChevronRight className="w-3 h-3 mt-0.5 text-cyber-yellow" /> 
-                              {s}
-                            </motion.li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                  </motion.div>
-                )}
-              </div>
-
-              <div className="bg-cyber-card p-5 rounded-2xl border border-white/5 relative overflow-hidden">
-                {/* Points indicator */}
-                <div className="absolute top-4 right-4 text-[10px] text-cyber-yellow font-bold flex items-center gap-1 bg-cyber-yellow/10 px-2 py-1 rounded-full">
-                  <Star className="w-3 h-3" /> +XP
-                </div>
-                <h3 className="text-sm font-bold mb-4 flex items-center gap-2">
-                  <AlertTriangle className="w-4 h-4 text-cyber-yellow" />
-                  Phishing Detector
-                </h3>
-                <textarea 
-                  placeholder="Paste message or link here..."
-                  value={phishingInput}
-                  onChange={(e) => setPhishingInput(e.target.value)}
-                  className="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-cyber-yellow/50 h-20 mb-3 resize-none"
-                />
-                <button 
-                  onClick={onAnalyzePhishing}
-                  disabled={isAnalyzingPhishing}
-                  className="w-full bg-cyber-yellow text-black font-bold py-2 rounded-xl text-sm hover:bg-cyber-yellow/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            <AnimatePresence mode="wait">
+              {!selectedToolId ? (
+                <motion.div 
+                  key="tools-list"
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 20 }}
+                  className="grid grid-cols-1 sm:grid-cols-2 gap-4"
                 >
-                  {isAnalyzingPhishing ? (
-                    <>
-                      <RefreshCw className="w-4 h-4 animate-spin" />
-                      Analyzing Deeply...
-                    </>
-                  ) : 'Scan Content'}
-                </button>
-                {phishAnalysis && (
-                  <motion.div 
-                    initial={{ opacity: 0, y: 10 }} 
-                    animate={{ opacity: 1, y: 0 }} 
-                    transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
-                    className="mt-4 space-y-3"
-                  >
-                    {/* Warning Banner for High/Medium Risk */}
-                    {(phishAnalysis.riskLevel === 'High' || phishAnalysis.riskLevel === 'Medium') && (
-                      <motion.div 
-                        initial={{ scale: 0.95, opacity: 0 }}
-                        animate={{ scale: 1, opacity: 1 }}
-                        className={cn(
-                          "p-3 rounded-xl border flex items-center gap-3 animate-pulse",
-                          phishAnalysis.riskLevel === 'High' 
-                            ? "bg-cyber-red/10 border-cyber-red/30 text-cyber-red" 
-                            : "bg-cyber-yellow/10 border-cyber-yellow/30 text-cyber-yellow"
-                        )}
-                      >
-                        <ShieldAlert className="w-5 h-5 shrink-0" />
-                        <div className="text-[10px] font-bold leading-tight">
-                          {phishAnalysis.riskLevel === 'High' 
-                            ? "CRITICAL THREAT DETECTED: This link is highly likely to be a phishing attempt." 
-                            : "SUSPICIOUS ACTIVITY: Exercise extreme caution before interacting with this link."}
-                        </div>
-                      </motion.div>
-                    )}
-
-                    <div className="flex items-center justify-between px-1">
-                      <div className="flex items-center gap-2">
-                        {phishAnalysis.riskLevel === 'High' ? (
-                          <XCircle className="w-5 h-5 text-cyber-red" />
-                        ) : phishAnalysis.riskLevel === 'Medium' ? (
-                          <AlertTriangle className="w-5 h-5 text-cyber-yellow" />
-                        ) : (
-                          <CheckCircle2 className="w-5 h-5 text-cyber-green" />
-                        )}
-                        <span className={cn(
-                          "text-sm font-bold",
-                          phishAnalysis.riskLevel === 'High' ? "text-cyber-red" : 
-                          phishAnalysis.riskLevel === 'Medium' ? "text-cyber-yellow" : "text-cyber-green"
-                        )}>
-                          Risk: {phishAnalysis.riskLevel}
-                        </span>
+                  {[
+                    { id: 'password', name: 'Password Analyzer', icon: Fingerprint, color: 'text-cyber-blue', desc: 'Test strength & crack time' },
+                    { id: 'phishing', name: 'Phishing Detector', icon: AlertOctagon, color: 'text-cyber-yellow', desc: 'Scan suspicious links' },
+                    { id: 'exif', name: 'Metadata Analyzer', icon: ApertureIcon, color: 'text-cyber-green', desc: 'Exif & GPS forensics' },
+                    { id: 'suite', name: 'Advanced Suite', icon: Terminal, color: 'text-cyber-red', desc: 'Hash, Decode, Port, JWT' },
+                  ].map((tool) => (
+                    <button
+                      key={tool.id}
+                      onClick={() => setSelectedToolId(tool.id)}
+                      className="group bg-cyber-card p-5 rounded-2xl border border-white/5 hover:border-white/20 transition-all text-left flex items-start gap-4 relative overflow-hidden"
+                    >
+                      <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center shrink-0 bg-white/5 border border-white/5 group-hover:border-white/10 transition-all", tool.color.replace('text-', 'bg-').concat('/10'))}>
+                        <tool.icon className={cn("w-6 h-6", tool.color)} />
                       </div>
-                      <div className="text-[10px] font-mono opacity-40">
-                        SCAN_ID: {Math.random().toString(36).substring(7).toUpperCase()}
+                      <div>
+                        <h3 className="font-bold text-sm mb-1">{tool.name}</h3>
+                        <p className="text-xs text-white/30">{tool.desc}</p>
                       </div>
+                      <ChevronRight className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/10 group-hover:text-white/40 transition-all transform group-hover:translate-x-1" />
+                    </button>
+                  ))}
+                  
+                  {/* Local Sentinel Info (Moved from Suite into the main tab footer area) */}
+                  <div className="sm:col-span-2 bg-black/40 rounded-3xl border border-white/5 p-6 border-dashed opacity-60">
+                    <div className="flex items-center justify-between mb-4">
+                      <h4 className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/30 flex items-center gap-2">
+                        <ShieldCheck className="w-3 h-3" />
+                        Active Platform Sentinel
+                      </h4>
                     </div>
-
-                    <div className="space-y-2">
-                      <p className="text-[10px] font-bold uppercase text-white/30 ml-1">Analysis Findings</p>
-                      {phishAnalysis.reasons.length > 0 ? (
-                        <div className="space-y-1">
-                          {phishAnalysis.reasons.map((r, i) => (
-                            <motion.div 
-                              key={i}
-                              initial={{ x: -10, opacity: 0 }}
-                              animate={{ x: 0, opacity: 1 }}
-                              transition={{ delay: i * 0.1 }}
-                              className="text-[10px] text-white/80 bg-white/5 p-2 rounded-lg border border-white/10 flex items-start gap-2"
+                    <p className="text-[10px] text-white/40 leading-relaxed italic">
+                      Diagnostic tools operate locally in your browser. All analysis is performed using high-performance native sub-systems.
+                    </p>
+                  </div>
+                </motion.div>
+              ) : (
+                <motion.div 
+                  key={selectedToolId}
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  className="space-y-6"
+                >
+                  {/* Tool Selection Logic */}
+                  {selectedToolId === 'password' && (
+                      <div className="bg-cyber-card p-5 sm:p-6 rounded-3xl border border-white/5 relative overflow-hidden">
+                        <div className="absolute top-4 right-4 sm:top-6 sm:right-6 text-[10px] text-cyber-blue font-bold flex items-center gap-1 bg-cyber-blue/10 px-2 py-1 rounded-full z-10">
+                          <Star className="w-3 h-3" /> UNIQUE_TOOL
+                        </div>
+                        <h3 className="text-lg font-bold mb-6 flex items-center gap-3 pr-24 sm:pr-0">
+                          <Fingerprint className="w-6 h-6 text-cyber-blue shrink-0" />
+                          <span className="truncate">Password Strength Analyzer</span>
+                        </h3>
+                        <div className="relative flex flex-col sm:flex-row gap-3 mb-6">
+                          <div className="relative flex-1 min-w-0">
+                            <input 
+                              type={showPassword ? "text" : "password"}
+                              placeholder="Type a password to analyze..."
+                              value={passwordInput}
+                              onChange={(e) => setPasswordInput(e.target.value)}
+                              className="w-full bg-black/40 border border-white/10 rounded-xl pl-5 pr-12 py-3 text-sm focus:outline-none focus:border-cyber-blue/50"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowPassword(!showPassword)}
+                              className="absolute right-4 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/60 transition-colors"
                             >
-                              <div className="w-1 h-1 rounded-full bg-cyber-red mt-1.5 shrink-0" />
-                              {r}
-                            </motion.div>
-                          ))}
+                              {showPassword ? <X className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                            </button>
+                          </div>
+                          <button 
+                            onClick={onAnalyzePassword}
+                            disabled={isAnalyzingPassword}
+                            className="bg-cyber-blue text-black font-bold px-8 py-3 rounded-xl text-sm hover:bg-cyber-blue/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 whitespace-nowrap"
+                          >
+                            {isAnalyzingPassword ? <RefreshCw className="w-4 h-4 animate-spin" /> : 'Run Analysis'}
+                          </button>
                         </div>
-                      ) : (
-                        <div className="text-[10px] text-cyber-green bg-cyber-green/5 p-2 rounded-lg border border-cyber-green/10">
-                          No significant phishing indicators found in the provided content.
-                        </div>
+                        
+                        {passAnalysis && (
+                          <div className="space-y-4 pt-4 border-t border-white/5">
+                            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+                              <div className="flex items-center gap-3">
+                                <span className="text-sm font-medium text-white/50">Security Level:</span>
+                                <span className={cn(
+                                  "text-sm font-bold px-3 py-1 rounded-full whitespace-nowrap",
+                                  passAnalysis.strength === 'Strong' ? "text-cyber-green bg-cyber-green/10" :
+                                  passAnalysis.strength === 'Medium' ? "text-cyber-yellow bg-cyber-yellow/10" : "text-cyber-red bg-cyber-red/10"
+                                )}>{passAnalysis.strength}</span>
+                              </div>
+                              <span className="text-xs font-mono opacity-60 bg-white/5 px-2 py-1 rounded w-fit">SCORE_VAL: {passAnalysis.score}/100</span>
+                            </div>
+                            <div className="w-full bg-white/5 h-2 rounded-full overflow-hidden">
+                              <motion.div 
+                                initial={{ width: 0 }}
+                                animate={{ width: `${passAnalysis.score}%` }}
+                                transition={{ duration: 1, ease: [0.23, 1, 0.32, 1] }}
+                                className={cn(
+                                  "h-full transition-colors duration-500",
+                                  passAnalysis.score > 80 ? "bg-cyber-green" :
+                                  passAnalysis.score > 40 ? "bg-cyber-yellow" : "bg-cyber-red"
+                                )}
+                              />
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                              <div className="flex items-start gap-3 text-xs text-white/40 bg-black/30 p-4 rounded-2xl border border-white/5">
+                                <Zap className="w-4 h-4 text-cyber-yellow shrink-0 mt-0.5" />
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-[10px] uppercase font-bold tracking-widest mb-0.5">Time to Crack</p>
+                                  <p className="text-white/80 font-bold break-words">{passAnalysis.crackTime}</p>
+                                </div>
+                              </div>
+                              {passAnalysis.suggestions.length > 0 && (
+                                <div className="bg-black/30 p-4 rounded-2xl border border-white/5 overflow-hidden">
+                                  <p className="text-[10px] uppercase font-bold tracking-widest text-white/40 mb-2">Hardening Tips</p>
+                                  <ul className="space-y-1.5 list-none">
+                                    {passAnalysis.suggestions.slice(0, 3).map((s, i) => (
+                                      <li key={i} className="flex items-start gap-2 text-xs text-cyber-blue/70">
+                                        <div className="w-1.5 h-1.5 rounded-full bg-cyber-blue shrink-0 mt-1" />
+                                        <span className="flex-1 leading-tight break-words">{s}</span>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                  )}
+
+                  {selectedToolId === 'phishing' && (
+                    <div className="bg-cyber-card p-5 sm:p-6 rounded-3xl border border-white/5 relative overflow-hidden">
+                      <div className="absolute top-4 right-4 sm:top-6 sm:right-6 text-[10px] text-cyber-yellow font-bold flex items-center gap-1 bg-cyber-yellow/10 px-2 py-1 rounded-full z-10">
+                        <AlertOctagon className="w-3 h-3" /> INTEL_SCAN
+                      </div>
+                      <h3 className="text-lg font-bold mb-6 flex items-center gap-3 pr-24 sm:pr-0">
+                        <AlertOctagon className="w-6 h-6 text-cyber-yellow shrink-0" />
+                        <span className="truncate">Phishing Intelligence Scanner</span>
+                      </h3>
+                      <textarea 
+                        placeholder="Paste suspected phishing link or message body here for deep inspection..."
+                        value={phishingInput}
+                        onChange={(e) => setPhishingInput(e.target.value)}
+                        className="w-full bg-black/40 border border-white/10 rounded-2xl px-5 py-4 text-sm focus:outline-none focus:border-cyber-yellow/50 h-32 mb-4 resize-none"
+                      />
+                      <button 
+                        onClick={onAnalyzePhishing}
+                        disabled={isAnalyzingPhishing}
+                        className="w-full bg-cyber-yellow text-black font-bold py-4 rounded-xl text-sm hover:bg-cyber-yellow/80 transition-all disabled:opacity-50 flex items-center justify-center gap-3"
+                      >
+                        {isAnalyzingPhishing ? <RefreshCw className="w-5 h-5 animate-spin" /> : 'Analyze Link Integrity'}
+                      </button>
+
+                      {phishAnalysis && (
+                        <motion.div 
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          className="mt-8 space-y-6 pt-6 border-t border-white/5"
+                        >
+                          <div className={cn(
+                            "p-4 rounded-2xl border flex items-start gap-4",
+                            phishAnalysis.riskLevel === 'High' ? "bg-cyber-red/10 border-cyber-red/30 text-cyber-red" : 
+                            phishAnalysis.riskLevel === 'Medium' ? "bg-cyber-yellow/10 border-cyber-yellow/30 text-cyber-yellow" : 
+                            "bg-cyber-green/10 border-cyber-green/30 text-cyber-green"
+                          )}>
+                            <div className="mt-1">
+                              {phishAnalysis.riskLevel === 'High' ? <ShieldAlert className="w-6 h-6 shrink-0" /> : 
+                               phishAnalysis.riskLevel === 'Medium' ? <AlertOctagon className="w-6 h-6 shrink-0" /> : <ShieldCheck className="w-6 h-6 shrink-0" />}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-bold uppercase tracking-wider truncate">{phishAnalysis.riskLevel} Risk Detected</p>
+                              <p className="text-xs opacity-80 mt-1 break-words">
+                                {phishAnalysis.riskLevel === 'High' ? "This content contains high-confidence phishing indicators. DO NOT interact." : 
+                                 phishAnalysis.riskLevel === 'Medium' ? "Suspicious patterns detected. Further verification is recommended." : "No significant threats identified via heuristic analysis."}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                            <div className="space-y-3">
+                              <p className="text-[10px] font-bold uppercase tracking-widest text-white/30 ml-1">Threat Markers</p>
+                              <div className="space-y-2">
+                                {phishAnalysis.reasons.length > 0 ? phishAnalysis.reasons.map((r, i) => (
+                                  <div key={i} className="text-xs text-white/70 bg-white/5 p-3 rounded-xl border border-white/5 flex gap-3 overflow-hidden">
+                                    <span className="text-cyber-red shrink-0">•</span> 
+                                    <span className="flex-1 break-words">{r}</span>
+                                  </div>
+                                )) : (
+                                  <div className="text-xs text-cyber-green bg-cyber-green/5 p-3 rounded-xl border border-cyber-green/10">Clean scan result.</div>
+                                )}
+                              </div>
+                            </div>
+                            <div className="space-y-3">
+                              <p className="text-[10px] font-bold uppercase tracking-widest text-white/30 ml-1">Defensive Steps</p>
+                              <div className="space-y-2">
+                                {phishAnalysis.tips.map((t, i) => (
+                                  <div key={i} className="text-xs text-cyber-blue/70 bg-cyber-blue/5 p-3 rounded-xl border border-cyber-blue/10 flex gap-3 overflow-hidden">
+                                    <ChevronRight className="w-4 h-4 shrink-0 text-cyber-blue" /> 
+                                    <span className="flex-1 break-words">{t}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        </motion.div>
                       )}
                     </div>
+                  )}
 
-                    <div className="pt-2">
-                      <p className="text-[10px] font-bold uppercase text-white/30 mb-2 ml-1">Prevention Tips</p>
-                      <ul className="text-[10px] space-y-1.5">
-                        {phishAnalysis.tips.map((t, i) => (
-                          <motion.li 
-                            key={i} 
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            transition={{ delay: 0.3 + (i * 0.1) }}
-                            className="flex items-start gap-2 text-cyber-blue/70"
-                          >
-                            <ChevronRight className="w-3 h-3 mt-0.5 text-cyber-blue" /> 
-                            {t}
-                          </motion.li>
-                        ))}
-                      </ul>
-                    </div>
-                  </motion.div>
-                )}
-              </div>
+                  {selectedToolId === 'exif' && (
+                    <ExifAnalyzer />
+                  )}
 
-              {/* EXIF Metadata Analyzer */}
-              <div className="md:col-span-2">
-                <ExifAnalyzer />
-              </div>
-            </section>
-            
-            <div className="text-[10px] text-center text-white/20 pb-4 flex flex-col items-center gap-2">
-              <span>CREDENTIA Cyber AI Mentor • For educational purposes only</span>
-              <div className="flex items-center gap-4">
-                <button 
-                  onClick={() => setShowPrivacyPolicy(true)}
-                  className="hover:text-cyber-blue transition-colors underline underline-offset-2"
-                >
-                  Privacy Policy
-                </button>
-                <button 
-                  onClick={() => setShowTermsOfService(true)}
-                  className="hover:text-cyber-blue transition-colors underline underline-offset-2"
-                >
-                  Terms of Service
-                </button>
-              </div>
-            </div>
-
-            <PrivacyPolicy 
-              isOpen={showPrivacyPolicy} 
-              onClose={() => setShowPrivacyPolicy(false)} 
-            />
-            <TermsOfService 
-              isOpen={showTermsOfService} 
-              onClose={() => setShowTermsOfService(false)} 
-            />
+                  {selectedToolId === 'suite' && (
+                    <SecuritySuite />
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
           </motion.div>
         ) : activeTab === 'learningHub' ? (
           <LearningHub 
             userDoc={userDoc} 
+            onTopicMastered={handleTopicMastered}
             onCompleteTopic={handleCompleteTopic}
             onPassQuiz={handlePassQuiz}
             onQuizStateChange={setIsQuizActive}
@@ -1706,11 +1761,11 @@ export default function App() {
           <motion.div 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="space-y-6 pb-20"
+            className="space-y-6"
           >
             {!user || !userDoc ? (
               <div className="bg-cyber-card p-6 rounded-2xl border border-white/5 text-center mt-6">
-                <Lock className="w-8 h-8 text-white/20 mx-auto mb-3" />
+                <CircleUser className="w-8 h-8 text-white/20 mx-auto mb-3" />
                 <p className="text-sm text-white/60">Log in to view your profile and badges.</p>
                 <button 
                   onClick={handleLogin}
@@ -1760,19 +1815,6 @@ export default function App() {
                     <div className="text-center">
                       <p className="text-2xl font-bold">{userDoc?.xp || 0}</p>
                       <p className="text-[10px] uppercase tracking-wider text-white/50">Total XP</p>
-                    </div>
-                    <div className="w-px bg-white/10" />
-                    <div className="text-center">
-                      <p className="text-2xl font-bold">
-                        {(() => {
-                          const xp = userDoc?.xp || 0;
-                          if (xp > 1000) return '1';
-                          if (xp > 500) return '2';
-                          if (xp > 100) return '3';
-                          return '-';
-                        })()}
-                      </p>
-                      <p className="text-[10px] uppercase tracking-wider text-white/50">Rank</p>
                     </div>
                     <div className="w-px bg-white/10" />
                     <div className="text-center">
@@ -1944,44 +1986,47 @@ export default function App() {
       <nav className="fixed bottom-0 left-0 right-0 w-full md:max-w-screen-2xl mx-auto bg-cyber-card/90 backdrop-blur-xl border-t border-white/10 p-2 z-20">
         <div className="max-w-3xl mx-auto flex justify-around items-center w-full">
           <button 
-            onClick={() => { setActiveTab('home'); }}
+            onClick={() => setActiveTab('home')}
             className={cn(
-              "flex flex-col items-center gap-1 p-2 rounded-xl transition-all",
-              activeTab === 'home' ? "text-cyber-blue" : "text-white/30"
+              "flex flex-col items-center gap-1.5 p-2 rounded-xl transition-all group",
+              activeTab === 'home' ? "text-cyber-blue shadow-[0_0_15px_rgba(0,242,255,0.1)]" : "text-white/30 hover:text-white/60"
             )}
           >
-            <Home className="w-5 h-5" />
-            <span className="text-[10px] font-bold uppercase">Home</span>
+            <Home className={cn("w-5 h-5 transition-transform", activeTab === 'home' ? "scale-110 active-icon" : "group-hover:scale-110")} />
+            <span className="text-[9px] font-bold uppercase tracking-widest">Home</span>
           </button>
           <button 
-            onClick={() => { setActiveTab('learningHub'); }}
+            onClick={() => setActiveTab('learningHub')}
             className={cn(
-              "flex flex-col items-center gap-1 p-2 rounded-xl transition-all",
-              activeTab === 'learningHub' ? "text-cyber-blue" : "text-white/30"
+              "flex flex-col items-center gap-1.5 p-2 rounded-xl transition-all group",
+              activeTab === 'learningHub' ? "text-cyber-blue shadow-[0_0_15px_rgba(0,242,255,0.1)]" : "text-white/30 hover:text-white/60"
             )}
           >
-            <BookOpen className="w-5 h-5" />
-            <span className="text-[10px] font-bold uppercase">Learning Hub</span>
+            <BookOpen className={cn("w-5 h-5 transition-transform", activeTab === 'learningHub' ? "scale-110 active-icon" : "group-hover:scale-110")} />
+            <span className="text-[9px] font-bold uppercase tracking-widest">Academy</span>
           </button>
           <button 
-            onClick={() => { setActiveTab('tools'); }}
+            onClick={() => {
+              setActiveTab('tools');
+              setSelectedToolId(null);
+            }}
             className={cn(
-              "flex flex-col items-center gap-1 p-2 rounded-xl transition-all",
-              activeTab === 'tools' ? "text-cyber-blue" : "text-white/30"
+              "flex flex-col items-center gap-1.5 p-2 rounded-xl transition-all group",
+              activeTab === 'tools' ? "text-cyber-blue shadow-[0_0_15px_rgba(0,242,255,0.1)]" : "text-white/30 hover:text-white/60"
             )}
           >
-            <Wrench className="w-5 h-5" />
-            <span className="text-[10px] font-bold uppercase">Tools</span>
+            <Wrench className={cn("w-5 h-5 transition-transform", activeTab === 'tools' ? "scale-110 active-icon" : "group-hover:scale-110")} />
+            <span className="text-[9px] font-bold uppercase tracking-widest">Tools</span>
           </button>
           <button 
-            onClick={() => { setActiveTab('profile'); }}
+            onClick={() => setActiveTab('profile')}
             className={cn(
-              "flex flex-col items-center gap-1 p-2 rounded-xl transition-all",
-              activeTab === 'profile' ? "text-cyber-blue" : "text-white/30"
+              "flex flex-col items-center gap-1.5 p-2 rounded-xl transition-all group",
+              activeTab === 'profile' ? "text-cyber-blue shadow-[0_0_15px_rgba(0,242,255,0.1)]" : "text-white/30 hover:text-white/60"
             )}
           >
-            <User className="w-5 h-5" />
-            <span className="text-[10px] font-bold uppercase">Profile</span>
+            <CircleUser className={cn("w-5 h-5 transition-transform", activeTab === 'profile' ? "scale-110 active-icon" : "group-hover:scale-110")} />
+            <span className="text-[9px] font-bold uppercase tracking-widest">Profile</span>
           </button>
         </div>
       </nav>

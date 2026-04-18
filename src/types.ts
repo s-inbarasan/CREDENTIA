@@ -31,6 +31,7 @@ export interface UserPreferences {
   notifications: boolean;
   soundEffects: boolean;
   hapticFeedback: boolean;
+  hasAcceptedTerms?: boolean;
 }
 
 export interface ChatSession {

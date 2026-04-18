@@ -1,6 +1,10 @@
 import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
+import dotenv from "dotenv";
+
+// Load environment variables from .env file for local development
+dotenv.config();
 
 async function startServer() {
   const app = express();
@@ -28,9 +32,11 @@ async function startServer() {
 
   // Secure Gemini API route
   app.post("/api/gemini", express.json(), async (req, res) => {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      return res.status(500).json({ error: "GEMINI_API_KEY is not configured on the server" });
+    let rawKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY || '';
+    const apiKey = rawKey.replace(/^["']|["']$/g, '').trim();
+
+    if (!apiKey || apiKey === 'undefined' || apiKey === 'null') {
+      return res.status(500).json({ error: "API Key is not configured or is null." });
     }
 
     const { prompt, history } = req.body;
@@ -50,9 +56,10 @@ async function startServer() {
 
       const text = result.response.text();
       res.json({ text: text || "I'm sorry, I couldn't process that request." });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Gemini Backend Error:", error);
-      res.status(500).json({ error: "Failed to process AI request" });
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      res.status(500).json({ error: `Failed to process AI request. Details: ${errorMessage}` });
     }
   });
 

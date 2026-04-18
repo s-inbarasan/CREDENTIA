@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Shield, Lock, Eye, FileText } from 'lucide-react';
+import { X, Shield, Lock, Eye, FileText, ShieldCheck } from 'lucide-react';
 
 interface PrivacyPolicyProps {
   isOpen: boolean;
@@ -37,59 +37,50 @@ export const PrivacyPolicy: React.FC<PrivacyPolicyProps> = ({ isOpen, onClose })
               <section className="space-y-3">
                 <h3 className="text-white font-bold flex items-center gap-2">
                   <FileText className="w-4 h-4 text-cyber-blue" />
-                  1. Information We Collect
+                  1. Data Sovereignty & Collection
                 </h3>
                 <p>
-                  At Credentia, we prioritize your security. We collect minimal information including your name, 
-                  email address, and learning progress to provide a personalized educational experience. 
-                  Any data you provide during interactive exercises (like password testing) is processed 
-                  locally or securely and is not stored permanently in a way that risks your actual real-world security.
+                  CREDENTIA operates on a "Zero-Trust Data Policy." We collect only the essential identifiers required to maintain your security clearance and progression within the platform. This includes:
                 </p>
+                <ul className="list-disc pl-5 space-y-1">
+                  <li><span className="text-white/90">Identity Data:</span> Cryptographically hashed identifiers derived from your authentication provider.</li>
+                  <li><span className="text-white/90">Operational Metatada:</span> Learning Hub progression, simulation results, and achieved credentials (badges).</li>
+                  <li><span className="text-white/90">Local Execution Data:</span> Cybersecurity tool inputs (e.g., password strings for analysis) are processed client-side whenever possible and are never used for profiling or external training.</li>
+                </ul>
               </section>
 
               <section className="space-y-3">
                 <h3 className="text-white font-bold flex items-center gap-2">
                   <Lock className="w-4 h-4 text-cyber-blue" />
-                  2. How We Use Your Data
+                  2. Security Architecture
                 </h3>
                 <p>
-                  Your data is used solely to:
-                </p>
-                <ul className="list-disc pl-5 space-y-1">
-                  <li>Maintain your learning progress and achievement badges.</li>
-                  <li>Provide personalized guidance through the AI Mentor.</li>
-                  <li>Improve our educational content and user experience.</li>
-                </ul>
-                <p>
-                  We do not sell, trade, or otherwise transfer your personally identifiable information to outside parties.
+                  Your data is protected by industry-standard AES-256 encryption at rest and TLS 1.3 in transit. Access to educational metrics is restricted to your authenticated session via granular security rules. We do not maintain unencrypted backups of user-provided sensitive strings used in tool simulations.
                 </p>
               </section>
 
               <section className="space-y-3">
                 <h3 className="text-white font-bold flex items-center gap-2">
                   <Eye className="w-4 h-4 text-cyber-blue" />
-                  3. Tracking & Cookies
+                  3. Non-Disclosure & Third-Party Ethics
                 </h3>
                 <p>
-                  We use essential session tokens to keep you logged in. For analytics, we use localized, 
-                  privacy-respecting methods to understand how users interact with our training modules.
+                  CREDENTIA does not engage in data monetization. Your educational journey is strictly confidential. No data is shared with third-party advertisers or external agencies unless required by explicit legal mandate in the jurisdiction of operation.
                 </p>
               </section>
 
               <section className="space-y-3">
                 <h3 className="text-white font-bold flex items-center gap-2">
-                  <Shield className="w-4 h-4 text-cyber-blue" />
-                  4. Security
+                  <ShieldCheck className="w-4 h-4 text-cyber-blue" />
+                  4. Accountability
                 </h3>
                 <p>
-                  We implement a variety of security measures to maintain the safety of your personal 
-                  information. Your data is stored behind secured networks and is only accessible by 
-                  a limited number of persons who have special access rights to such systems.
+                  Users maintain the right to "Digital Erasure." You may request total decommissioning of your profile and associated metadata through the secure settings interface.
                 </p>
               </section>
 
               <section className="pt-4 border-t border-white/5 text-[10px] text-white/40 italic">
-                Last Updated: April 18, 2026. Credentia Cybersecurity Platform.
+                Document Reference: CRED-SEC-PRIV-2026-v2.1. Authorized for Global Deployment.
               </section>
             </div>
           </motion.div>
