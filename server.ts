@@ -26,6 +26,36 @@ async function startServer() {
     res.json({ message: "OpenAI endpoint ready" });
   });
 
+  // Secure Gemini API route
+  app.post("/api/gemini", express.json(), async (req, res) => {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      return res.status(500).json({ error: "GEMINI_API_KEY is not configured on the server" });
+    }
+
+    const { prompt, history } = req.body;
+
+    try {
+      const { GoogleGenerativeAI } = await import("@google/generative-ai");
+      const genAI = new GoogleGenerativeAI(apiKey);
+      
+      const model = genAI.getGenerativeModel({ 
+        model: "gemini-1.5-flash",
+        systemInstruction: "You are CREDENTIA Cyber AI Mentor, a professional cybersecurity assistant. Provide simple yet technical explanations about password safety, phishing, data privacy, and cyber attacks. Always structure your answers with Headings, Bullet points, Step-by-step explanations, and Practical examples. Always include a disclaimer that this is for educational purposes only. Keep responses concise, professional, and helpful.",
+      });
+
+      const result = await model.generateContent({
+        contents: history.concat([{ role: 'user', parts: [{ text: prompt }] }]),
+      });
+
+      const text = result.response.text();
+      res.json({ text: text || "I'm sorry, I couldn't process that request." });
+    } catch (error) {
+      console.error("Gemini Backend Error:", error);
+      res.status(500).json({ error: "Failed to process AI request" });
+    }
+  });
+
   // Breach monitoring proxy route
 
   // Vite middleware for development

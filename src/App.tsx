@@ -56,6 +56,9 @@ import { Login } from './components/Login';
 import { ChatPanel } from './components/ChatPanel';
 import { ThreeBackground } from './components/ThreeBackground';
 import { Onboarding } from './components/Onboarding';
+import { ExifAnalyzer } from './components/ExifAnalyzer';
+import { PrivacyPolicy } from './components/PrivacyPolicy';
+import { TermsOfService } from './components/TermsOfService';
 import { BADGE_DEFINITIONS, checkNewBadges } from './utils/badges';
 import { supabase } from './supabase';
 import { cn } from './utils/cn';
@@ -119,6 +122,8 @@ export default function App() {
   const [showLogin, setShowLogin] = useState(false);
   const [showChatPanel, setShowChatPanel] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
+  const [showTermsOfService, setShowTermsOfService] = useState(false);
   const [showBadgeNotification, setShowBadgeNotification] = useState<string | null>(null);
   const [showSettingsSaved, setShowSettingsSaved] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
@@ -207,6 +212,15 @@ export default function App() {
     
     const newBadges = checkNewBadges(newStats, userDoc.badges || []);
     
+    // Optimistic UI Update
+    setUserDoc(prev => prev ? {
+      ...prev,
+      completedTopics: newTopics,
+      xp: newPoints,
+      stats: newStats,
+      badges: [...(prev.badges || []), ...newBadges]
+    } : null);
+    
     try {
       addRecentActivity(`Completed: ${topicId.replace(/_/g, ' ')}`, 'topic');
       
@@ -242,6 +256,14 @@ export default function App() {
     };
     
     const newBadges = checkNewBadges(newStats, userDoc.badges || []);
+    
+    // Optimistic UI Update
+    setUserDoc(prev => prev ? {
+      ...prev,
+      quizScores: newScores,
+      stats: newStats,
+      badges: [...(prev.badges || []), ...newBadges]
+    } : null);
     
     try {
       addRecentActivity(`Passed Quiz: ${topicId.replace(/_/g, ' ')}`, 'quiz');
@@ -285,6 +307,7 @@ export default function App() {
 
   // Analyzers State
   const [passwordInput, setPasswordInput] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [passAnalysis, setPassAnalysis] = useState<PasswordAnalysis | null>(null);
   
   const [phishingInput, setPhishingInput] = useState('');
@@ -301,11 +324,33 @@ export default function App() {
     let chatSubscription: any;
     let activitySubscription: any;
 
+    // Strategy for 'Real-Time State Management':
+    // We use Supabase Realtime (Postgres Changes) to listen for updates on the 'profiles', 
+    // 'chat_sessions', and 'recent_activity' tables. This allows the UI to reflect 
+    // database changes automatically and in real-time without a page reload.
+    // This is a 'Reactive UI' pattern where the UI is a function of the state, 
+    // and the state is kept in sync with the backend via persistent listeners.
+
     const handleSession = async (session: any) => {
       const supabaseUser = session?.user;
       console.log('App: handleSession triggered', { hasUser: !!supabaseUser, userId: supabaseUser?.id });
       
+      // Step 7: Debugging Mode - Log session info
+      console.log('DEBUG: handleSession called', {
+        userId: supabaseUser?.id,
+        sessionToken: session?.access_token?.substring(0, 10) + '...',
+        timestamp: new Date().toISOString()
+      });
+      
+      // Clear state immediately to prevent data mixing
+      setUserDoc(null);
+      setRecentActivity([]);
+      setChatSessions([]);
+      
       if (supabaseUser) {
+        // Step 7: Debugging Mode - Log fetching intent
+        console.log('DEBUG: Fetching data for user:', supabaseUser.id);
+        
         const appUser: AppUser = {
           uid: supabaseUser.id,
           email: supabaseUser.email || '',
@@ -608,6 +653,8 @@ export default function App() {
       
       setUser(null);
       setUserDoc(null);
+      setRecentActivity([]);
+      setChatSessions([]);
       setIsGuest(false);
       setShowLogin(false);
       setActiveTab('home');
@@ -1148,7 +1195,8 @@ export default function App() {
               className="p-2 bg-cyber-blue/10 text-cyber-blue rounded-full hover:bg-cyber-blue/20 transition-colors relative"
             >
               <MessageSquare className="w-5 h-5" />
-              {chatSessions.length > 0 && (
+              {/* Notification Badge - Hidden by default as per request */}
+              {false && chatSessions.length > 0 && (
                 <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-cyber-red rounded-full border-2 border-cyber-bg" />
               )}
             </button>
@@ -1254,7 +1302,17 @@ export default function App() {
                   </p>
                 </div>
                 <div className="z-10 scale-90 md:scale-100">
-                  <RiskMeter score={100 - riskScore} />
+                  <AnimatePresence mode="wait">
+                    <motion.div
+                      key={riskScore}
+                      initial={{ opacity: 0, scale: 0.8, rotate: -10 }}
+                      animate={{ opacity: 1, scale: 1, rotate: 0 }}
+                      exit={{ opacity: 0, scale: 0.8, rotate: 10 }}
+                      transition={{ duration: 0.5, type: "spring", stiffness: 100 }}
+                    >
+                      <RiskMeter score={100 - riskScore} />
+                    </motion.div>
+                  </AnimatePresence>
                 </div>
               </section>
 
@@ -1263,8 +1321,8 @@ export default function App() {
                 <div>
                   <p className="text-[10px] uppercase text-cyber-blue font-bold tracking-wider mb-1">Learning Progress</p>
                   <div className="flex items-end gap-1">
-                    <span className="text-3xl font-bold">{userDoc?.completedTopics?.length || 0}</span>
-                    <span className="text-xs text-white/50 mb-1">/ 50 Topics</span>
+                    <span className="text-3xl font-bold">{userDoc?.completedTopics?.filter(id => id.startsWith('module-') || /^[BIA]-M\d+$/.test(id)).length || 0}</span>
+                    <span className="text-xs text-white/50 mb-1">/ 20 Modules</span>
                   </div>
                 </div>
                 <div className="flex gap-2">
@@ -1328,34 +1386,47 @@ export default function App() {
             <section className="space-y-4">
               <h3 className="text-sm font-bold uppercase tracking-widest text-white/30 px-2">Recent Activity</h3>
               <div className="bg-cyber-card rounded-3xl border border-white/5 overflow-hidden">
-                {recentActivity.length > 0 ? (
-                  recentActivity.map((activity, index) => (
-                    <div key={activity.id} className={cn("p-4 flex items-center gap-3", index !== recentActivity.length - 1 && "border-b border-white/5")}>
-                      <div className={cn(
-                        "w-8 h-8 rounded-full flex items-center justify-center",
-                        activity.type === 'topic' ? "bg-cyber-yellow/10 text-cyber-yellow" :
-                        activity.type === 'quiz' ? "bg-cyber-green/10 text-cyber-green" :
-                        activity.type === 'health' ? "bg-cyber-blue/10 text-cyber-blue" :
-                        "bg-cyber-purple/10 text-cyber-purple"
-                      )}>
-                        {activity.type === 'topic' ? <BookOpen className="w-4 h-4" /> :
-                         activity.type === 'quiz' ? <Award className="w-4 h-4" /> :
-                         activity.type === 'health' ? <ShieldCheck className="w-4 h-4" /> :
-                         <Wrench className="w-4 h-4" />}
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium">{activity.title}</p>
-                        <p className="text-xs text-white/40">
-                          {new Date(activity.timestamp).toLocaleDateString()} {new Date(activity.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        </p>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="p-6 text-center text-white/50 text-sm">
-                    No recent activity. Start learning to earn XP!
-                  </div>
-                )}
+                <AnimatePresence initial={false}>
+                  {recentActivity.length > 0 ? (
+                    recentActivity.map((activity, index) => (
+                      <motion.div 
+                        key={activity.id}
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: 20 }}
+                        transition={{ duration: 0.3, ease: "easeOut" }}
+                        className={cn("p-4 flex items-center gap-3", index !== recentActivity.length - 1 && "border-b border-white/5")}
+                      >
+                        <div className={cn(
+                          "w-8 h-8 rounded-full flex items-center justify-center",
+                          activity.type === 'topic' ? "bg-cyber-yellow/10 text-cyber-yellow" :
+                          activity.type === 'quiz' ? "bg-cyber-green/10 text-cyber-green" :
+                          activity.type === 'health' ? "bg-cyber-blue/10 text-cyber-blue" :
+                          "bg-cyber-purple/10 text-cyber-purple"
+                        )}>
+                          {activity.type === 'topic' ? <BookOpen className="w-4 h-4" /> :
+                           activity.type === 'quiz' ? <Award className="w-4 h-4" /> :
+                           activity.type === 'health' ? <ShieldCheck className="w-4 h-4" /> :
+                           <Wrench className="w-4 h-4" />}
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium">{activity.title}</p>
+                          <p className="text-xs text-white/40">
+                            {new Date(activity.timestamp).toLocaleDateString()} {new Date(activity.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </p>
+                        </div>
+                      </motion.div>
+                    ))
+                  ) : (
+                    <motion.div 
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      className="p-6 text-center text-white/50 text-sm"
+                    >
+                      No recent activity. Start learning to earn XP!
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
             </section>
           </motion.div>
@@ -1382,14 +1453,23 @@ export default function App() {
                   <Lock className="w-4 h-4 text-cyber-blue" />
                   Password Analyzer
                 </h3>
-                <div className="flex gap-2 mb-4">
-                  <input 
-                    type="password"
-                    placeholder="Enter password to test..."
-                    value={passwordInput}
-                    onChange={(e) => setPasswordInput(e.target.value)}
-                    className="flex-1 bg-black/30 border border-white/10 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-cyber-blue/50"
-                  />
+                <div className="relative flex gap-2 mb-4">
+                  <div className="relative flex-1">
+                    <input 
+                      type={showPassword ? "text" : "password"}
+                      placeholder="Enter password to test..."
+                      value={passwordInput}
+                      onChange={(e) => setPasswordInput(e.target.value)}
+                      className="w-full bg-black/30 border border-white/10 rounded-xl pl-4 pr-10 py-2 text-sm focus:outline-none focus:border-cyber-blue/50"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/60 transition-colors"
+                    >
+                      {showPassword ? <X className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
                   <button 
                     onClick={onAnalyzePassword}
                     disabled={isAnalyzingPassword}
@@ -1582,15 +1662,38 @@ export default function App() {
                 )}
               </div>
 
-
-              {/* Removed Data Breach Monitor */}
-
-              {/* Removed File Risk Analyzer */}
+              {/* EXIF Metadata Analyzer */}
+              <div className="md:col-span-2">
+                <ExifAnalyzer />
+              </div>
             </section>
             
-            <p className="text-[10px] text-center text-white/20 pb-4">
-              CREDENTIA Cyber AI Mentor • For educational purposes only
-            </p>
+            <div className="text-[10px] text-center text-white/20 pb-4 flex flex-col items-center gap-2">
+              <span>CREDENTIA Cyber AI Mentor • For educational purposes only</span>
+              <div className="flex items-center gap-4">
+                <button 
+                  onClick={() => setShowPrivacyPolicy(true)}
+                  className="hover:text-cyber-blue transition-colors underline underline-offset-2"
+                >
+                  Privacy Policy
+                </button>
+                <button 
+                  onClick={() => setShowTermsOfService(true)}
+                  className="hover:text-cyber-blue transition-colors underline underline-offset-2"
+                >
+                  Terms of Service
+                </button>
+              </div>
+            </div>
+
+            <PrivacyPolicy 
+              isOpen={showPrivacyPolicy} 
+              onClose={() => setShowPrivacyPolicy(false)} 
+            />
+            <TermsOfService 
+              isOpen={showTermsOfService} 
+              onClose={() => setShowTermsOfService(false)} 
+            />
           </motion.div>
         ) : activeTab === 'learningHub' ? (
           <LearningHub 

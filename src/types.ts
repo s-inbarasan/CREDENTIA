@@ -79,6 +79,45 @@ export interface QuizQuestion {
   options: string[];
   correctAnswerIndex: number;
   explanation: string;
+  industryInsight?: string;
+}
+
+export interface Section {
+  id: string;
+  type: 'intro' | 'concept' | 'decision' | 'summary' | 'ai_prompt';
+  title: string;
+  
+  // Intro / Summary / Concept
+  content?: string;
+  learningObjectives?: string[];
+  
+  // Concept specific
+  definition?: string;
+  howItWorks?: string | string[];
+  example?: string;
+  caseStudy?: {
+    title: string;
+    description: string;
+    impact: string;
+  };
+  whyItMatters?: string;
+  keyPrinciple?: string;
+  
+  // Decision specific
+  scenario?: string;
+  question?: string;
+  options?: string[];
+  correctAnswerIndex?: number;
+  explanation?: string;
+  insight?: string;
+  
+  // Summary specific
+  keyFindings?: string[];
+  corePrinciple?: string;
+  actionableTakeaways?: string[];
+  
+  // AI Prompt specific
+  prompt?: string;
 }
 
 export interface Topic {
@@ -88,12 +127,7 @@ export interface Topic {
   title: string;
   level: 'Beginner' | 'Intermediate' | 'Advanced' | 'Expert';
   icon: string;
-  overview: string;
-  simpleExplanation: string;
-  whyItMatters: string;
-  explanation: string;
-  realWorldExample: string;
-  securityTips: string[];
-  summary: string;
+  isFinalAssessment?: boolean;
+  sections: Section[];
   quiz: QuizQuestion[];
 }

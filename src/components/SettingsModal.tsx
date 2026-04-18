@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Moon, Contrast, Bell, Volume2, Vibrate, Download, AlertTriangle } from 'lucide-react';
-import { cn } from '../utils/cn';
 
 interface SettingsModalProps {
   isOpen: boolean;
