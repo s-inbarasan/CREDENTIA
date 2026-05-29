@@ -107,6 +107,6 @@ src/
 ---
 
 <p align="center">
-  Built with ⚡ by the CREDENTIA Collective.<br>
+  Built by Inbarasan.<br>
   <em>Identity is the new perimeter. Verify everything.</em>
 </p>
