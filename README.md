@@ -32,8 +32,7 @@ In a world where data is the new oil and identity is the new perimeter, **CREDEN
 
 Guided by the **CREDENTIA AI Mentor**, you will navigate through a series of character-driven learning modules. Whether you're deconstructing the **Hacker Mindset**, neutralizing **Phishing Vectors**, or preparing for the **Quantum-Ready Future**, every interaction is a step toward total operational security.
 
-> "The internet is no longer just on a screen; it’s in your home, your car, and your headset. Secure the physical-digital bridge." — *AXON Intelligence Brief*
-
+> "The internet is no longer just on a screen; it’s in your home, your car, and your headset. Secure the physical-digital bridge."
 ---
 
 ## 🛠️ The Core Engine: Tech Stack
