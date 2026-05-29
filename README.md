@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://i.ibb.co/Cpsv0qY7/73024ef0-7fe4-4884-96b1-58af0a49ff7c.png" width="200" alt="CREDENTIA Logo">
+  <img src="https://i.ibb.co/zVX9SY95/IMG-20260327-094409.png" width="200" alt="CREDENTIA Logo">
 </p>
 
 <h1 align="center">⚡ CREDENTIA ⚡</h1>
