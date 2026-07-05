@@ -1,0 +1,60 @@
+<svg width="800" height="400" viewBox="0 0 800 400" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#080215" />
+      <stop offset="100%" stop-color="#020005" />
+    </linearGradient>
+    <linearGradient id="waveGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#00f0ff" />
+      <stop offset="100%" stop-color="#b620e0" />
+    </linearGradient>
+    <filter id="glowPurple" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="5" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <rect width="100%" height="100%" fill="url(#bg)" />
+
+  <!-- Waveform (Left) -->
+  <g stroke="url(#waveGrad)" stroke-width="4" stroke-linecap="round" filter="url(#glowPurple)" transform="translate(150, 200)">
+    <line x1="-80" y1="0" x2="-80" y2="0" />
+    <line x1="-60" y1="-20" x2="-60" y2="20" />
+    <line x1="-40" y1="-50" x2="-40" y2="50" />
+    <line x1="-20" y1="-90" x2="-20" y2="90" />
+    <line x1="0" y1="-120" x2="0" y2="120" />
+    <line x1="20" y1="-80" x2="20" y2="80" />
+    <line x1="40" y1="-40" x2="40" y2="40" />
+    <line x1="60" y1="-10" x2="60" y2="10" />
+  </g>
+  <text x="150" y="340" fill="#00f0ff" font-family="monospace" font-size="12" font-weight="bold" text-anchor="middle">Input Audio Sample</text>
+
+  <!-- Neural Network Processing (Center) -->
+  <g transform="translate(400, 200)" fill="none" stroke="#b620e0" stroke-width="1" opacity="0.6">
+    <path d="M -100 -50 L 0 -100 L 100 -50 Z" />
+    <path d="M -100 50 L 0 100 L 100 50 Z" />
+    <path d="M -100 -50 L 0 0 L 100 50" />
+    <path d="M -100 50 L 0 0 L 100 -50" />
+    
+    <circle cx="-100" cy="-50" r="4" fill="#b620e0"/>
+    <circle cx="-100" cy="50" r="4" fill="#b620e0"/>
+    <circle cx="0" cy="-100" r="4" fill="#b620e0"/>
+    <circle cx="0" cy="0" r="4" fill="#b620e0"/>
+    <circle cx="0" cy="100" r="4" fill="#b620e0"/>
+    <circle cx="100" cy="-50" r="4" fill="#b620e0"/>
+    <circle cx="100" cy="50" r="4" fill="#b620e0"/>
+  </g>
+  <text x="400" y="340" fill="#b620e0" font-family="monospace" font-size="12" font-weight="bold" text-anchor="middle">Synthesis Model</text>
+
+  <!-- Human Face Wireframe (Right) -->
+  <g transform="translate(650, 200)" stroke="#ff0088" stroke-width="2" fill="none" filter="url(#glowPurple)">
+    <path d="M -20 -100 C 40 -100, 60 -50, 60 0 C 60 30, 40 70, 20 90 L -10 110 L -40 90 L -40 50 C -40 50, -20 60, 0 40 C 20 20, 20 -20, 0 -40 C -20 -60, -40 -50, -40 -50 Z" stroke-dasharray="4 2"/>
+    
+    <!-- Speaking Lines -->
+    <path d="M -50 10 Q -70 10, -90 0" stroke="#ff0088" opacity="0.6"/>
+    <path d="M -50 30 Q -80 30, -100 40" stroke="#ff0088" opacity="0.8"/>
+    <path d="M -40 50 Q -70 60, -90 80" stroke="#ff0088" opacity="0.6"/>
+  </g>
+  <text x="650" y="340" fill="#ff0088" font-family="monospace" font-size="12" font-weight="bold" text-anchor="middle">Synthesized Voice Output</text>
+  
+</svg>

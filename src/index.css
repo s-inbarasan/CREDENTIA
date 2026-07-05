@@ -42,8 +42,8 @@ body {
 }
 
 @keyframes cyber-pulse {
-  0%, 100% { text-shadow: 0 0 15px rgba(0, 242, 255, 0.6), 0 0 30px rgba(0, 242, 255, 0.3); }
-  50% { text-shadow: 0 0 30px rgba(0, 242, 255, 1), 0 0 60px rgba(0, 242, 255, 0.5); }
+  0%, 100% { text-shadow: 0 0 8px rgba(0, 242, 255, 0.3), 0 0 15px rgba(0, 242, 255, 0.15); }
+  50% { text-shadow: 0 0 15px rgba(0, 242, 255, 0.6), 0 0 30px rgba(0, 242, 255, 0.3); }
 }
 
 .text-glow {
@@ -55,4 +55,16 @@ selection {
   background: #00f2ff;
   color: black;
 }
+
+/* Chrome/Safari Autofill Hardening */
+input:-webkit-autofill,
+input:-webkit-autofill:hover, 
+input:-webkit-autofill:focus, 
+input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px #060b11 inset !important;
+  -webkit-text-fill-color: #ffffff !important;
+  transition: background-color 5000s ease-in-out 0s;
+  caret-color: #00f2ff;
+}
+
 

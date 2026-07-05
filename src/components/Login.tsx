@@ -186,13 +186,13 @@ export function Login({ onBack, onSuccess }: LoginProps) {
               <motion.div variants={itemVariants} className="space-y-2">
                 <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40 ml-1">Email Address</label>
                 <div className="relative group">
-                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/20 group-focus-within:text-cyber-blue transition-colors" />
+                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40 group-focus-within:text-cyber-blue transition-colors z-10" />
                   <input 
                     type="email" 
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
-                    className="w-full bg-black/40 border border-white/5 rounded-2xl py-3 pl-12 pr-4 focus:outline-none focus:border-cyber-blue/50 transition-all text-sm font-medium tracking-wide"
+                    className="w-full bg-black/40 border border-white/5 rounded-2xl py-3 pl-12 pr-4 focus:outline-none focus:border-cyber-blue/50 transition-all text-sm font-medium tracking-wide relative"
                     placeholder="name@example.com"
                   />
                 </div>
@@ -201,7 +201,7 @@ export function Login({ onBack, onSuccess }: LoginProps) {
               <motion.div variants={itemVariants} className="space-y-2">
                 <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40 ml-1">Password</label>
                 <div className="relative group">
-                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/20 group-focus-within:text-cyber-blue transition-colors" />
+                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40 group-focus-within:text-cyber-blue transition-colors z-10" />
                   <input 
                     type={showPassword ? "text" : "password"} 
                     value={password}
@@ -211,13 +211,13 @@ export function Login({ onBack, onSuccess }: LoginProps) {
                     }}
                     onFocus={() => isSignUp && setShowPasswordStrength(true)}
                     required
-                    className="w-full bg-black/40 border border-white/5 rounded-2xl py-3 pl-12 pr-12 focus:outline-none focus:border-cyber-blue/50 transition-all text-sm font-medium tracking-wide"
+                    className="w-full bg-black/40 border border-white/5 rounded-2xl py-3 pl-12 pr-12 focus:outline-none focus:border-cyber-blue/50 transition-all text-sm font-medium tracking-wide relative"
                     placeholder="••••••••"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 p-1.5 hover:bg-white/5 rounded-lg transition-colors text-white/20 hover:text-white/60"
+                    className="absolute right-4 top-1/2 -translate-y-1/2 p-1.5 hover:bg-white/10 rounded-lg transition-colors text-white/40 hover:text-white z-20 cursor-pointer"
                   >
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
@@ -245,19 +245,19 @@ export function Login({ onBack, onSuccess }: LoginProps) {
                 <motion.div variants={itemVariants} className="space-y-2">
                   <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40 ml-1">Confirm Password</label>
                   <div className="relative group">
-                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/20 group-focus-within:text-cyber-blue transition-colors" />
+                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40 group-focus-within:text-cyber-blue transition-colors z-10" />
                     <input 
                       type={showConfirmPassword ? "text" : "password"} 
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
                       required
-                      className="w-full bg-black/40 border border-white/5 rounded-2xl py-3 pl-12 pr-12 focus:outline-none focus:border-cyber-blue/50 transition-all text-sm font-medium tracking-wide"
+                      className="w-full bg-black/40 border border-white/5 rounded-2xl py-3 pl-12 pr-12 focus:outline-none focus:border-cyber-blue/50 transition-all text-sm font-medium tracking-wide relative"
                       placeholder="••••••••"
                     />
                     <button
                       type="button"
                       onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                      className="absolute right-4 top-1/2 -translate-y-1/2 p-1.5 hover:bg-white/5 rounded-lg transition-colors text-white/20 hover:text-white/60"
+                      className="absolute right-4 top-1/2 -translate-y-1/2 p-1.5 hover:bg-white/10 rounded-lg transition-colors text-white/40 hover:text-white z-20 cursor-pointer"
                     >
                       {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>

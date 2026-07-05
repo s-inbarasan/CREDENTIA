@@ -83,14 +83,32 @@ export interface QuizQuestion {
   industryInsight?: string;
 }
 
+export interface Character {
+  id: string;
+  name: string;
+  role: 'expert' | 'learner' | 'skeptic' | 'analyst' | 'target';
+  avatarStr: string;
+  color: string;
+}
+
+export interface DialogueLine {
+  characterId: string;
+  text: string;
+  isAction?: boolean; // If true, rendering might highlight it or show it as an event instead of speech
+}
+
 export interface Section {
   id: string;
-  type: 'intro' | 'concept' | 'decision' | 'summary' | 'ai_prompt';
+  type: 'intro' | 'concept' | 'decision' | 'summary' | 'visual' | 'step_by_step' | 'real_world' | 'common_mistakes' | 'advanced' | 'dialogue';
   title: string;
   
-  // Intro / Summary / Concept
+  // Intro / Summary / Concept / General
   content?: string;
   learningObjectives?: string[];
+
+  // Dialogue specific
+  characters?: Character[];
+  dialogue?: DialogueLine[];
   
   // Concept specific
   definition?: string;
@@ -117,8 +135,24 @@ export interface Section {
   corePrinciple?: string;
   actionableTakeaways?: string[];
   
-  // AI Prompt specific
-  prompt?: string;
+  // Visual specific
+  imageUrl?: string;
+  imageAlt?: string;
+  videoUrl?: string; // YouTube or external video URL
+  
+  // Step-by-Step
+  steps?: { title: string; description: string; }[];
+  
+  // Real world
+  realWorldScenario?: string;
+  realWorldImpact?: string;
+  
+  // Common mistakes
+  mistakes?: { mistake: string; correction: string; }[];
+  
+  // Advanced specific
+  advancedInsight?: string;
+  deepDive?: string;
 }
 
 export interface Topic {

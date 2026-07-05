@@ -10,13 +10,11 @@ import {
   BookOpen,
   Wrench,
   Home,
-  MessageSquare, 
   Fingerprint, 
   AlertOctagon, 
   Zap, 
   Send, 
   CircleUser, 
-  Bot, 
   ChevronRight, 
   ChevronLeft,
   RefreshCw,
@@ -46,7 +44,9 @@ import {
   Database,
   FileSearch,
   FileWarning,
-  Library
+  Library,
+  Activity,
+  ArrowLeft
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { clsx, type ClassValue } from 'clsx';
@@ -54,12 +54,10 @@ import { twMerge } from 'tailwind-merge';
 import { Toaster, toast } from 'sonner';
 import { Message, RiskState, PasswordAnalysis, PhishingAnalysis, UserDocument, ChatSession } from './types';
 import { analyzePassword, analyzePhishing } from './utils/analyzer';
-import { getCyberResponse } from './services/geminiService';
 import { LearningHub } from './components/LearningHub';
 import { SettingsModal } from './components/SettingsModal';
 import { LandingPage } from './components/LandingPage';
 import { Login } from './components/Login';
-import { ChatPanel } from './components/ChatPanel';
 import { ThreeBackground } from './components/ThreeBackground';
 import { Onboarding } from './components/Onboarding';
 import { ExifAnalyzer } from './components/ExifAnalyzer';
@@ -122,13 +120,20 @@ interface AppUser {
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<'home' | 'tools' | 'learningHub' | 'profile'>('home');
+  const mainRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    if (mainRef.current) {
+      mainRef.current.scrollTo(0, 0);
+    }
+  }, [activeTab]);
+
   const [selectedToolId, setSelectedToolId] = useState<string | null>(null);
   const [user, setUser] = useState<AppUser | null>(null);
   const [userDoc, setUserDoc] = useState<UserDocument | null>(null);
   const [isGuest, setIsGuest] = useState(false);
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
-  const [showChatPanel, setShowChatPanel] = useState(false);
   const [loading, setLoading] = useState(true);
   const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
   const [showTermsOfService, setShowTermsOfService] = useState(false);
@@ -399,14 +404,6 @@ export default function App() {
 
     const handleSession = async (session: any) => {
       const supabaseUser = session?.user;
-      console.log('App: handleSession triggered', { hasUser: !!supabaseUser, userId: supabaseUser?.id });
-      
-      // Step 7: Debugging Mode - Log session info
-      console.log('DEBUG: handleSession called', {
-        userId: supabaseUser?.id,
-        sessionToken: session?.access_token?.substring(0, 10) + '...',
-        timestamp: new Date().toISOString()
-      });
       
       // Clear state immediately to prevent data mixing
       setUserDoc(null);
@@ -414,9 +411,6 @@ export default function App() {
       setChatSessions([]);
       
       if (supabaseUser) {
-        // Step 7: Debugging Mode - Log fetching intent
-        console.log('DEBUG: Fetching data for user:', supabaseUser.id);
-        
         const appUser: AppUser = {
           uid: supabaseUser.id,
           email: supabaseUser.email || '',
@@ -490,9 +484,9 @@ export default function App() {
         }
 
         // Listen to User Document (Realtime)
-        if (profileSubscription) profileSubscription.unsubscribe();
+        if (profileSubscription) supabase.removeChannel(profileSubscription);
         profileSubscription = supabase
-          .channel(`public:profiles:${supabaseUser.id}`)
+          .channel(`public:profiles:${supabaseUser.id}-${Date.now()}`)
           .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles', filter: `id=eq.${supabaseUser.id}` }, (payload) => {
             const data = payload.new as any;
             if (data) {
@@ -559,9 +553,9 @@ export default function App() {
         };
         fetchChatSessions();
 
-        if (chatSubscription) chatSubscription.unsubscribe();
+        if (chatSubscription) supabase.removeChannel(chatSubscription);
         chatSubscription = supabase
-          .channel(`public:chat_sessions:${supabaseUser.id}`)
+          .channel(`public:chat_sessions:${supabaseUser.id}-${Date.now()}`)
           .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_sessions', filter: `user_id=eq.${supabaseUser.id}` }, () => {
             fetchChatSessions();
           })
@@ -594,9 +588,9 @@ export default function App() {
         };
         fetchRecentActivity();
 
-        if (activitySubscription) activitySubscription.unsubscribe();
+        if (activitySubscription) supabase.removeChannel(activitySubscription);
         activitySubscription = supabase
-          .channel(`public:recent_activity:${supabaseUser.id}`)
+          .channel(`public:recent_activity:${supabaseUser.id}-${Date.now()}`)
           .on('postgres_changes', { event: '*', schema: 'public', table: 'recent_activity', filter: `user_id=eq.${supabaseUser.id}` }, () => {
             fetchRecentActivity();
           })
@@ -611,9 +605,9 @@ export default function App() {
         setRiskScore(15);
         setRecentActivity([]);
         setChatSessions([]);
-        if (profileSubscription) profileSubscription.unsubscribe();
-        if (chatSubscription) chatSubscription.unsubscribe();
-        if (activitySubscription) activitySubscription.unsubscribe();
+        if (profileSubscription) supabase.removeChannel(profileSubscription);
+        if (chatSubscription) supabase.removeChannel(chatSubscription);
+        if (activitySubscription) supabase.removeChannel(activitySubscription);
       }
       console.log('App: Setting loading to false');
       setLoading(false);
@@ -1030,9 +1024,12 @@ export default function App() {
   console.log('App: Rendering', { loading, hasUser: !!user, needsOnboarding, hasUserDoc: !!userDoc, isEnteringDashboard });
 
   return (
-    <div className="relative min-h-screen bg-black overflow-hidden font-sans selection:bg-cyber-blue selection:text-black">
+    <div className={cn(
+      "relative min-h-screen bg-black font-sans selection:bg-cyber-blue selection:text-black",
+      (!user && !isGuest) ? "overflow-x-hidden" : "overflow-hidden"
+    )}>
       {/* Global Background - Stays mounted for animation continuity */}
-      <ThreeBackground isWarping={isEnteringDashboard} />
+      {!user && !isGuest && <ThreeBackground isWarping={isEnteringDashboard} />}
 
       <AnimatePresence mode="wait">
         {loading ? (
@@ -1247,15 +1244,8 @@ export default function App() {
           <div className="flex items-center gap-2 md:gap-3">
             <div 
               onClick={() => setIsEditingProfile(true)}
-              className="w-8 h-8 md:w-10 md:h-10 rounded-full overflow-hidden border border-cyber-blue/30 cyber-glow bg-black flex items-center justify-center cursor-pointer hover:scale-105 transition-transform"
+              className="flex items-center gap-1.5 md:gap-2 cursor-pointer hover:opacity-80 transition-opacity"
             >
-              {userDoc?.profileImage ? (
-                <img src={userDoc.profileImage} alt="Avatar" className="w-full h-full object-cover" />
-              ) : (
-                <User className="w-4 h-4 md:w-5 md:h-5 text-cyber-blue" />
-              )}
-            </div>
-            <div className="flex items-center gap-1.5 md:gap-2">
               <div>
                 <h1 className="text-sm md:text-lg font-bold tracking-tight leading-none truncate max-w-[120px] md:max-w-none">
                   {userDoc?.name || 'CREDENTIA'}
@@ -1264,16 +1254,7 @@ export default function App() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <button 
-              onClick={() => setShowChatPanel(true)}
-              className="p-2 bg-cyber-blue/10 text-cyber-blue rounded-full hover:bg-cyber-blue/20 transition-colors relative"
-            >
-              <MessageSquare className="w-5 h-5" />
-              {/* Notification Badge - Hidden by default as per request */}
-              {false && chatSessions.length > 0 && (
-                <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-cyber-red rounded-full border-2 border-cyber-bg" />
-              )}
-            </button>
+
             {user ? (
               <button 
                 onClick={() => setShowLogoutConfirm(true)}
@@ -1283,11 +1264,11 @@ export default function App() {
               </button>
             ) : (
               <button 
-                onClick={handleLogin}
+                onClick={() => setIsGuest(false)}
                 className="p-2 text-cyber-blue hover:text-white transition-colors"
-                title="Log In"
+                title="Exit Guest Mode"
               >
-                <LogIn className="w-5 h-5" />
+                <ArrowLeft className="w-5 h-5" />
               </button>
             )}
           </div>
@@ -1295,7 +1276,7 @@ export default function App() {
       </header>
 
       {/* Main Content */}
-      <main className={cn("flex-1 overflow-y-auto scrollbar-hide p-4 space-y-6 max-w-5xl mx-auto w-full", "pb-36 md:pb-32")}>
+      <main ref={mainRef} className={cn("flex-1 overflow-y-auto scrollbar-hide p-4 space-y-6 max-w-5xl mx-auto w-full", "pb-36 md:pb-32")}>
         {activeTab === 'home' ? (
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
@@ -1366,9 +1347,6 @@ export default function App() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Security Score */}
               <section className="bg-cyber-card p-5 md:p-6 rounded-3xl border border-white/5 relative overflow-hidden flex items-center justify-between h-full">
-                <div className="absolute top-0 right-0 p-4 opacity-10">
-                  <Logo size="xl" className="opacity-20 grayscale" />
-                </div>
                 <div className="z-10">
                   <h3 className="text-sm font-bold uppercase tracking-widest text-white/30 mb-2">Security Score</h3>
                   <p className="text-[10px] text-white/50 max-w-[150px] md:max-w-[200px] leading-relaxed">
@@ -1395,8 +1373,8 @@ export default function App() {
                 <div>
                   <p className="text-[10px] uppercase text-cyber-blue font-bold tracking-wider mb-1">Learning Progress</p>
                   <div className="flex items-end gap-1">
-                    <span className="text-3xl font-bold">{userDoc?.completedTopics?.filter(id => id.startsWith('module-') || /^[BIA]-M\d+$/.test(id)).length || 0}</span>
-                    <span className="text-xs text-white/50 mb-1">/ 20 Modules</span>
+                    <span className="text-3xl font-bold">{userDoc?.completedTopics?.filter(id => id.startsWith('module-') || /^[A-Z]+-M\d+$/.test(id)).length || 0}</span>
+                    <span className="text-xs text-white/50 mb-1">/ 4 Modules</span>
                   </div>
                 </div>
                 <div className="flex gap-2">
@@ -1439,11 +1417,11 @@ export default function App() {
             {/* Security Health Check Banner */}
             <section className="bg-gradient-to-r from-cyber-blue/20 to-cyber-card p-6 rounded-3xl border border-cyber-blue/30 relative overflow-hidden group">
               <div className="absolute top-0 right-0 p-4 opacity-20 group-hover:opacity-40 transition-opacity group-hover:scale-110 duration-500">
-                <ShieldCheck className="w-24 h-24 text-cyber-blue" />
+                <Activity className="w-24 h-24 text-cyber-blue" />
               </div>
               <div className="relative z-10">
                 <h2 className="text-xl font-bold mb-2 flex items-center gap-2">
-                  <ShieldCheck className="w-6 h-6 text-cyber-blue" />
+                  <Activity className="w-6 h-6 text-cyber-blue" />
                   Security Health Check
                 </h2>
                 <p className="text-sm text-white/70 mb-4 max-w-[80%]">Perform a comprehensive check of your digital security posture and get personalized recommendations.</p>
@@ -1532,32 +1510,12 @@ export default function App() {
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: 20 }}
-                  className="grid grid-cols-1 sm:grid-cols-2 gap-4"
+                  className="space-y-6"
                 >
-                  {[
-                    { id: 'password', name: 'Password Analyzer', icon: Fingerprint, color: 'text-cyber-blue', desc: 'Test strength & crack time' },
-                    { id: 'phishing', name: 'Phishing Detector', icon: AlertOctagon, color: 'text-cyber-yellow', desc: 'Scan suspicious links' },
-                    { id: 'exif', name: 'Metadata Analyzer', icon: ApertureIcon, color: 'text-cyber-green', desc: 'Exif & GPS forensics' },
-                    { id: 'suite', name: 'Advanced Suite', icon: Terminal, color: 'text-cyber-red', desc: 'Hash, Decode, Port, JWT' },
-                  ].map((tool) => (
-                    <button
-                      key={tool.id}
-                      onClick={() => setSelectedToolId(tool.id)}
-                      className="group bg-cyber-card p-5 rounded-2xl border border-white/5 hover:border-white/20 transition-all text-left flex items-start gap-4 relative overflow-hidden"
-                    >
-                      <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center shrink-0 bg-white/5 border border-white/5 group-hover:border-white/10 transition-all", tool.color.replace('text-', 'bg-').concat('/10'))}>
-                        <tool.icon className={cn("w-6 h-6", tool.color)} />
-                      </div>
-                      <div>
-                        <h3 className="font-bold text-sm mb-1">{tool.name}</h3>
-                        <p className="text-xs text-white/30">{tool.desc}</p>
-                      </div>
-                      <ChevronRight className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/10 group-hover:text-white/40 transition-all transform group-hover:translate-x-1" />
-                    </button>
-                  ))}
+                  <SecuritySuite />
                   
-                  {/* Local Sentinel Info (Moved from Suite into the main tab footer area) */}
-                  <div className="sm:col-span-2 bg-black/40 rounded-3xl border border-white/5 p-6 border-dashed opacity-60">
+                  {/* Local Sentinel Info */}
+                  <div className="bg-black/40 rounded-3xl border border-white/5 p-6 border-dashed opacity-60">
                     <div className="flex items-center justify-between mb-4">
                       <h4 className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/30 flex items-center gap-2">
                         <ShieldCheck className="w-3 h-3" />
@@ -1762,6 +1720,10 @@ export default function App() {
             onCompleteTopic={handleCompleteTopic}
             onPassQuiz={handlePassQuiz}
             onQuizStateChange={setIsQuizActive}
+            onLogin={() => {
+              setIsGuest(false);
+              setShowLogin(true);
+            }}
           />
         ) : activeTab === 'profile' ? (
           <motion.div 
@@ -1893,100 +1855,6 @@ export default function App() {
         isSavingSettings={isSavingSettings}
       />
 
-      {/* Floating AI Mentor Button */}
-      {!isQuizActive && (
-        <button
-          onClick={() => setShowChatPanel(true)}
-          className="fixed bottom-20 right-4 w-14 h-14 bg-cyber-blue/20 border border-cyber-blue/50 rounded-full shadow-[0_0_20px_rgba(0,255,255,0.4)] flex items-center justify-center hover:scale-110 transition-transform z-30 overflow-hidden"
-        >
-          <Logo size="sm" variant="ai" glow />
-        </button>
-      )}
-
-      {/* Chat Panel Overlay */}
-      <AnimatePresence>
-        {showChatPanel && (
-          <ChatPanel
-            isOpen={showChatPanel}
-            onClose={() => setShowChatPanel(false)}
-            userUid={user?.uid}
-            chatSessions={chatSessions}
-            onSessionUpdate={async (session) => {
-              console.log('App: onSessionUpdate called for session:', session.id, 'Title:', session.title);
-              
-              // Optimistic update
-              setChatSessions(prev => {
-                const index = prev.findIndex(s => s.id === session.id);
-                if (index >= 0) {
-                  const updated = [...prev];
-                  updated[index] = session;
-                  const sorted = updated.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-                  console.log('App: Updated existing session in state');
-                  return sorted;
-                }
-                console.log('App: Added new session to state');
-                return [session, ...prev];
-              });
-
-              if (user) {
-                try {
-                  // ONLY SAVE IF THERE IS USER INTERACTION (at least one user message)
-                  const hasUserMessage = session.messages.some(m => m.role === 'user');
-                  
-                  if (!hasUserMessage) {
-                    console.log('App: Session is empty (no user messages), skipping database save');
-                    return;
-                  }
-
-                  console.log('App: Upserting session to Supabase...', session.id);
-                  const { error } = await supabase
-                    .from('chat_sessions')
-                    .upsert({
-                      id: session.id,
-                      user_id: user.uid,
-                      title: session.title,
-                      updated_at: session.updatedAt,
-                      messages: session.messages
-                    });
-                  
-                  if (error) {
-                    console.error('App: Supabase upsert error:', error);
-                    toast.error('Failed to save chat: ' + error.message);
-                  } else {
-                    console.log('App: Session upserted successfully');
-                  }
-                } catch (error) {
-                  console.error('App: Error updating chat session:', error);
-                  toast.error('An unexpected error occurred while saving chat');
-                }
-              } else {
-                console.warn('App: No user found, session not saved to database');
-              }
-            }}
-            onSessionDelete={async (sessionId) => {
-              // Optimistic update
-              setChatSessions(prev => prev.filter(s => s.id !== sessionId));
-
-              if (user) {
-                try {
-                  await supabase
-                    .from('chat_sessions')
-                    .delete()
-                    .eq('id', sessionId)
-                    .eq('user_id', user.uid); // Ensure only user's own chats are deleted
-                } catch (error) {
-                  console.error('Error deleting chat session:', error);
-                }
-              }
-            }}
-            onMessageSent={(text) => {
-              updateRiskScore(Math.min(100, Math.max(0, riskScore + (text.length % 5))));
-              trackAction(2, 'aiQueries', 'chat');
-              addRecentActivity('AI Mentor Chat', 'tool');
-            }}
-          />
-        )}
-      </AnimatePresence>
 
       {/* Navigation */}
       <nav className="fixed bottom-0 left-0 right-0 w-full md:max-w-screen-2xl mx-auto bg-cyber-card/90 backdrop-blur-xl border-t border-white/10 p-2 z-20">
@@ -2031,7 +1899,19 @@ export default function App() {
               activeTab === 'profile' ? "text-cyber-blue shadow-[0_0_15px_rgba(0,242,255,0.1)]" : "text-white/30 hover:text-white/60"
             )}
           >
-            <CircleUser className={cn("w-5 h-5 transition-transform", activeTab === 'profile' ? "scale-110 active-icon" : "group-hover:scale-110")} />
+            {userDoc?.profileImage ? (
+              <img 
+                src={userDoc.profileImage} 
+                alt="Profile" 
+                className={cn(
+                  "w-5 h-5 rounded-full object-cover transition-transform", 
+                  activeTab === 'profile' ? "scale-110 border-cyber-blue border" : "group-hover:scale-110"
+                )} 
+                referrerPolicy="no-referrer"
+              />
+            ) : (
+              <CircleUser className={cn("w-5 h-5 transition-transform", activeTab === 'profile' ? "scale-110 active-icon" : "group-hover:scale-110")} />
+            )}
             <span className="text-[9px] font-bold uppercase tracking-widest">Profile</span>
           </button>
         </div>
@@ -2049,7 +1929,7 @@ export default function App() {
             >
               <div className="flex justify-between items-center mb-6">
                 <div className="flex items-center gap-3">
-                  <ShieldCheck className="w-6 h-6 text-cyber-blue" />
+                  <Activity className="w-6 h-6 text-cyber-blue" />
                   <h3 className="text-xl font-bold">Security Health Check</h3>
                 </div>
                 <button onClick={() => setShowHealthCheck(false)} className="p-2 hover:bg-white/10 rounded-full transition-colors">
@@ -2064,7 +1944,7 @@ export default function App() {
                     transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
                     className="mb-6"
                   >
-                    <ShieldCheck className="w-20 h-20 text-cyber-blue" />
+                    <Activity className="w-20 h-20 text-cyber-blue" />
                   </motion.div>
                   <p className="text-cyber-blue font-bold animate-pulse mb-4">Scanning System Integrity...</p>
                   <div className="w-full bg-white/10 rounded-full h-2 overflow-hidden">

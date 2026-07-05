@@ -1,112 +1,114 @@
-<p align="center">
-  <img src="https://i.ibb.co/zVX9SY95/IMG-20260327-094409.png" width="200" alt="CREDENTIA Logo">
-</p>
-
-<h1 align="center">⚡ CREDENTIA ⚡</h1>
+# 🌌 Credentia — Advanced Cybersecurity Academy & Security Protocols
 
 <p align="center">
-  <strong>Neural Link Active / v4.0.0</strong><br>
-  <em>The Future of AI Defense & Cybersecurity Education.</em>
+  <img src="./public/logo.png" alt="Credentia Logo" width="120" height="120" onerror="this.src='https://raw.githubusercontent.com/lucide-icons/lucide/main/icons/shield-alert.svg'" />
 </p>
 
 <p align="center">
-  <a href="https://credentia-hq.vercel.app/">
-    <img src="https://img.shields.io/badge/Live%20Demo-Neural%20Link-00f2ff?style=for-the-badge&logo=vercel" alt="Live Demo">
-  </a>
-  <a href="https://supabase.com/">
-    <img src="https://img.shields.io/badge/Database-Supabase-3ecf8e?style=for-the-badge&logo=supabase" alt="Supabase">
-  </a>
-  <a href="https://reactjs.org/">
-    <img src="https://img.shields.io/badge/Frontend-React%2019-61dafb?style=for-the-badge&logo=react" alt="React">
-  </a>
-  <a href="https://opensource.org/licenses/MIT">
-    <img src="https://img.shields.io/badge/License-MIT-4ade80?style=for-the-badge&logo=opensourceinitiative" alt="MIT License">
-  </a>
+  <strong>An Elite Cybersecurity Learning Sandbox and Defensive Protocol Suite.</strong>
+</p>
+
+<p align="center">
+  <a href="#-features">Features</a> •
+  <a href="#-system-architecture">Architecture</a> •
+  <a href="#-installation--setup">Setup</a> •
+  <a href="#-security-protocols">Security Suite</a> •
+  <a href="#-mit-license">License</a>
 </p>
 
 ---
 
-## 🌌 The Narrative: Story Mode Simulation
+## 💎 Introduction
 
-In a world where data is the new oil and identity is the new perimeter, **CREDENTIA** serves as your neural gateway to digital sovereignty. Step into a high-fidelity simulation where you are not just a student, but an operative in training.
+**Credentia** is a comprehensive, production-ready full-stack cybersecurity hub designed for professionals, researchers, and security students. It features an interactive learning academy, dynamic security evaluation protocols, cryptographic suites, and passive analysis tools, framed by a high-fidelity **Cosmic Slate Theme** with fluid layout animations.
 
-Guided by the **CREDENTIA AI Mentor**, you will navigate through a series of character-driven learning modules. Whether you're deconstructing the **Hacker Mindset**, neutralizing **Phishing Vectors**, or preparing for the **Quantum-Ready Future**, every interaction is a step toward total operational security.
-
-> "The internet is no longer just on a screen; it’s in your home, your car, and your headset. Secure the physical-digital bridge."
----
-
-## 🛠️ The Core Engine: Tech Stack
-
-CREDENTIA is built on a high-performance, reactive architecture designed for seamless, gamified learning.
-
-- **Frontend:** [React 19](https://react.dev/) + [Vite](https://vitejs.dev/) for ultra-fast HMR and optimized production builds.
-- **Styling:** [Tailwind CSS 4](https://tailwindcss.com/) with a custom "Cyber-Slate" design system.
-- **Animations:** [motion/react 12](https://motion.dev/) (formerly Framer Motion) for cinematic transitions and holographic UI effects.
-- **Intelligence:** [Google Gemini AI](https://ai.google.dev/) (`gemini-2.0-flash`) powering the real-time AI Mentor.
-- **Backend:** [Supabase](https://supabase.com/) for real-time user progression, XP tracking, and cryptographic identity management.
-- **Forensics:** [exifr](https://github.com/MikeK15/exifr) for deep metadata analysis and privacy stripping.
+Our goal is to build secure, robust applications utilizing modern development patterns. This repository enforces safe code practices, secure session handling, strict input sanitation, and zero-trust principles.
 
 ---
 
-## 🎨 Design Palette: Cosmic Cyberpunk
+## 🚀 Features
 
-The visual identity of CREDENTIA is defined by high-contrast glows and deep space aesthetics.
+### 1. 🎓 Dynamic Academy & Learning Progress
+- **The Complete Cybersecurity Bootcamp**: From zero knowledge to advanced defensive capabilities.
+- **Progress Tracking Engine**: Track your active course progression, module mastery, and quiz performance (resets to actual completed modules count out of 4 modules).
+- **Interactive Quizzes**: Reinforce learnings through scenario-based defensive security questionnaires.
+- **Account-Enforced Enrollment**: Strict session controls ensuring guest accounts must sign up or sign in before starting any learning pathways to preserve progress securely.
 
-| Element | Hex Code | Visual |
-| :--- | :--- | :--- |
-| **Cyber Blue** | `#00f2ff` | ![#00f2ff](https://via.placeholder.com/15/00f2ff?text=+) |
-| **Cyber Purple** | `#a855f7` | ![#a855f7](https://via.placeholder.com/15/a855f7?text=+) |
-| **Cyber Green** | `#00ffaa` | ![#00ffaa](https://via.placeholder.com/15/00ffaa?text=+) |
-| **Cyber Red** | `#ff0055` | ![#ff0055](https://via.placeholder.com/15/ff0055?text=+) |
-| **Cyber Background** | `#050a0f` | ![#050a0f](https://via.placeholder.com/15/050a0f?text=+) |
+### 2. 🛡️ Advanced Defensive Utility Suite
+- **Interactive Security Suite**: A modular, collapsible grid of defensive utilities:
+  - **Password Strength Analyzer**: Complete character analysis with real-time feedback and clear-state confirmation safety protocols.
+  - **Phishing Detector**: Scans potential phishing vectors and email patterns with robust local heuristics.
+  - **File Integrity Verifier**: Client-side secure hash generators supporting standard `SHA-256` and `SHA-512` protocols.
+  - **Base64/Hex/URL Transcoder**: Low-overhead utility to cleanly encode or decode string matrices securely.
 
----
-
-## 🚀 Operational Setup
-
-To initialize the CREDENTIA environment locally:
-
-1. **Clone the Repository:**
-   ```bash
-   git clone https://github.com/s-inbarasan/CREDENTIA.git
-   cd CREDENTIA
-   ```
-
-2. **Install Dependencies:**
-   ```bash
-   npm install
-   ```
-
-3. **Configure Environment Variables:**
-   Create a `.env` file in the root directory:
-   ```env
-   VITE_SUPABASE_URL=your_supabase_url
-   VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
-   GEMINI_API_KEY=your_gemini_api_key
-   ```
-
-4. **Launch the Simulation:**
-   ```bash
-   npm run dev
-   ```
+### 3. ☄️ Immersive Visual Environment
+- **ThreeJS Cybernetic Starfield Background**: Beautiful high-performance procedural space starfield background with smooth interactive warping controls on page entries.
+- **Seamless Universal Overlay Menu**: Premium minimalist "More" drawer with fluid, high-performance entrance transitions via Framer Motion.
 
 ---
 
-## 📂 Project Structure
+## 🛠️ System Architecture
 
-```text
-src/
-├── components/       # Holographic UI Components
-├── data/             # Modular Learning Content (LEARNING_TOPICS)
-├── services/         # AI & Backend Integration (Gemini, Supabase)
-├── utils/            # Forensic Analyzers & Gamification Logic
-├── types.ts          # Neural Schema Definitions
-└── supabase.ts       # Cryptographic Client Initialization
+- **Frontend**: React (18+), Vite, Tailwind CSS (v4), Framer Motion (`motion/react`)
+- **Backend / API**: Express.js server bundled with `esbuild` for enterprise compatibility (CommonJS target output bypassing Node’s ES Module paths checks)
+- **Database / Auth**: Supabase (PostgreSQL with RLS) for persistent user profiles, module completion logs, and security tracking data.
+- **Build / Target Platforms**: Fully optimized and configured for Vercel Serverless and standard Cloud Run container engines.
+
+---
+
+## 📦 Installation & Setup
+
+### Prerequisites
+- [Node.js](https://nodejs.org/) (v18 or higher)
+- [npm](https://www.npmjs.com/) (v9 or higher)
+
+### Step 1: Clone the Project & Install Dependencies
+```bash
+npm install
+```
+
+### Step 2: Configure Environment Variables
+Copy `.env.example` to create your local variables:
+```bash
+cp .env.example .env
+```
+Populate `.env` with your Supabase credentials:
+```env
+VITE_SUPABASE_URL=your_supabase_project_url
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_public_key
+```
+
+### Step 3: Run Development Server
+```bash
+npm run dev
+```
+The server will start on port `3000` (externally routed).
+
+### Step 4: Production Compilation
+```bash
+npm run build
 ```
 
 ---
 
-<p align="center">
-  Built by Inbarasan.<br>
-  <em>Identity is the new perimeter. Verify everything.</em>
-</p>
+## 🔒 Security Protocols
+
+We implement a zero-trust architecture across all components:
+1. **No Sensitive Browser Storage**: User metadata and course progress are bound directly to active JWT structures verified server-side.
+2. **Autofill Hardening**: Explicit custom CSS overrides guarding against browser auto-fill leaks (with proper dark-mode theme preservation).
+3. **Collapsible Safe Sandboxes**: Each tool resides in isolated state closures. Clear action prompts are dual-verified (`Clear? [Yes] [No]`) to avoid unintended leakage or accidental deletion of scanned telemetry.
+4. **Row-Level Security**: Standard PostgreSQL tables enforce `auth.uid() = user_id` rules preventing lateral cross-tenant operations.
+
+---
+
+## 🤝 Code of Conduct
+
+Participation in this project is subject to the provisions of the [Code of Conduct](CODE_OF_CONDUCT.md). We expect all contributors to adhere to polite, constructive, and highly professional community interactions.
+
+---
+
+## 📄 MIT License
+
+This project is open-source software licensed under the terms of the [MIT License](LICENSE.md).
+
+*Copyright © 2026 CREDENTIA Team. All rights reserved.*

@@ -98,70 +98,71 @@ export function LandingPage({ onLogin, onGuest }: LandingPageProps) {
     }
   ];
 
-  const stats = [
-    { label: 'Threats Detected', value: 10000, suffix: '+', icon: <ShieldAlert className="w-5 h-5" /> },
-    { label: 'Active Agents', value: 500, suffix: '+', icon: <User className="w-5 h-5" /> },
-    { label: 'Network Uptime', value: 99.9, suffix: '%', icon: <Activity className="w-5 h-5" /> },
-    { label: 'Monitoring Status', value: 24, suffix: '/7', icon: <Bot className="w-5 h-5" /> },
-  ];
-
   return (
     <div className="min-h-screen text-white selection:bg-cyber-blue selection:text-black">
       {/* Navbar moved logic here but ThreeBackground is global in App.tsx */}
+      {/* Navbar with MORE button only */}
       <header className={cn(
-        "fixed top-0 left-0 right-0 z-50 transition-all duration-300 px-4 md:px-6 py-3 md:py-4",
-        scrolled ? "bg-black/60 backdrop-blur-xl border-b border-white/10" : "bg-transparent"
+        "fixed top-0 left-0 right-0 z-50 transition-all duration-300 px-6 md:px-12 py-4",
+        scrolled ? "bg-black/30 backdrop-blur-md border-b border-white/5 shadow-lg" : "bg-transparent"
       )}>
-        <nav className="max-w-7xl mx-auto flex items-center justify-end md:justify-end">
-          {/* Desktop Nav */}
-          <div className="hidden md:flex items-center gap-8 mr-8">
-            {navLinks.map((link) => (
-              <a 
-                key={link.name} 
-                href={link.href}
-                className="text-xs font-bold uppercase tracking-widest text-white/50 hover:text-cyber-blue transition-colors"
-              >
-                {link.name}
-              </a>
-            ))}
-          </div>
-
-          <div className="flex items-center gap-4">
-            <button 
-              onClick={onLogin}
-              className="px-6 py-2 bg-cyber-blue text-black font-bold rounded-full text-xs uppercase tracking-widest hover:bg-cyber-blue/80 transition-all hover:scale-105 active:scale-95"
-            >
-              Get Started
-            </button>
-            <button 
-              className="md:hidden p-2 text-white"
-              onClick={() => setIsMenuOpen(!isMenuOpen)}
-            >
-              {isMenuOpen ? <X /> : <Menu />}
-            </button>
-          </div>
+        <nav className="max-w-7xl mx-auto flex items-center justify-end w-full">
+          <button 
+            onClick={() => setIsMenuOpen(true)}
+            className="flex items-center gap-2 px-5 py-2.5 bg-white/5 border border-white/10 hover:border-cyber-blue/40 text-white rounded-full hover:bg-white/10 transition-all cursor-pointer shadow-sm active:scale-95 group"
+          >
+            <span className="text-[10px] font-black uppercase tracking-widest pl-1 text-white group-hover:text-cyber-blue transition-colors">More</span>
+            <Menu className="w-4 h-4 text-cyber-blue" />
+          </button>
         </nav>
       </header>
 
-      {/* Mobile Drawer */}
+      {/* Premium Universal Overlay Menu */}
       <AnimatePresence>
         {isMenuOpen && (
           <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="fixed inset-0 z-40 bg-black/95 backdrop-blur-2xl md:hidden flex flex-col items-center justify-center gap-8"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3 }}
+            className="fixed inset-0 z-50 bg-black/95 backdrop-blur-3xl flex flex-col items-center justify-center"
           >
-            {navLinks.map((link) => (
-              <a 
-                key={link.name} 
-                href={link.href}
-                onClick={() => setIsMenuOpen(false)}
-                className="text-2xl font-bold uppercase tracking-[0.2em] text-white/60 hover:text-cyber-blue transition-colors"
+            {/* Close Button */}
+            <button 
+              onClick={() => setIsMenuOpen(false)}
+              className="absolute top-6 right-6 p-3 rounded-full bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 hover:scale-105 active:scale-95 transition-all text-white cursor-pointer"
+            >
+              <X className="w-6 h-6 text-cyber-blue" />
+            </button>
+
+            {/* Menu Content Container */}
+            <div className="flex flex-col items-center gap-8 max-w-sm w-full px-6">
+              <div className="flex flex-col items-center gap-6 w-full text-center">
+                {navLinks.map((link) => (
+                  <a 
+                    key={link.name} 
+                    href={link.href}
+                    onClick={() => setIsMenuOpen(false)}
+                    className="text-2xl font-black uppercase tracking-[0.2em] text-white/60 hover:text-cyber-blue transition-colors hover:scale-105 transform duration-200"
+                  >
+                    {link.name}
+                  </a>
+                ))}
+              </div>
+
+              <div className="w-full h-px bg-white/10 my-4" />
+
+              {/* Blue Log In / Sign Up Button */}
+              <button 
+                onClick={() => {
+                  setIsMenuOpen(false);
+                  onLogin();
+                }}
+                className="w-full py-4 bg-cyber-blue text-black font-black uppercase tracking-widest rounded-xl hover:bg-cyber-blue/80 hover:scale-105 active:scale-95 transition-all shadow-[0_0_25px_rgba(0,242,255,0.35)]"
               >
-                {link.name}
-              </a>
-            ))}
+                LOG IN / SIGN UP
+              </button>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -175,7 +176,7 @@ export function LandingPage({ onLogin, onGuest }: LandingPageProps) {
             transition={{ duration: 0.8, ease: "easeOut" }}
             className="z-10 max-w-4xl"
           >
-            <div className="mb-6 scale-110">
+            <div className="mb-2 scale-110">
               <Logo size="lg" glow />
             </div>
             
@@ -183,7 +184,7 @@ export function LandingPage({ onLogin, onGuest }: LandingPageProps) {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.3 }}
-              className="text-5xl md:text-7xl font-black uppercase tracking-[0.05em] mb-4 text-glow"
+              className="text-5xl md:text-7xl font-black uppercase tracking-tighter mb-4 text-glow"
             >
               Credentia
             </motion.h1>
@@ -192,7 +193,7 @@ export function LandingPage({ onLogin, onGuest }: LandingPageProps) {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.4 }}
-              className="text-cyber-blue text-xs md:text-sm font-bold tracking-[0.4em] mb-10 uppercase opacity-80"
+              className="text-cyber-blue text-xs md:text-sm font-bold tracking-[0.25em] mb-10 uppercase opacity-80"
             >
               Advanced Protection for Your Digital Life
             </motion.p>
@@ -205,9 +206,9 @@ export function LandingPage({ onLogin, onGuest }: LandingPageProps) {
             >
               <button 
                 onClick={onLogin}
-                className="w-full sm:w-auto px-10 py-3.5 bg-cyber-blue text-black font-black uppercase tracking-widest rounded-xl hover:bg-cyber-blue/80 hover:scale-105 transition-all shadow-[0_0_30px_rgba(0,242,255,0.4)]"
+                className="w-full sm:w-auto px-10 py-3.5 bg-cyber-blue text-black font-black uppercase tracking-widest rounded-xl hover:bg-cyber-blue/80 hover:scale-105 transition-all shadow-[0_0_30px_rgba(0,242,255,0.3)] hover:shadow-[0_0_40px_rgba(0,242,255,0.5)]"
               >
-                Start Now
+                LOG IN / SIGN UP
               </button>
               <button 
                 onClick={onGuest}
@@ -228,20 +229,18 @@ export function LandingPage({ onLogin, onGuest }: LandingPageProps) {
               <ChevronDown className="w-5 h-5" />
             </motion.div>
           </motion.div>
-
-          {/* Trust Line */}
-          <div className="absolute bottom-8 flex flex-col items-center gap-2 opacity-30">
-            <div className="flex gap-1">
-              {[1, 2, 3, 4, 5].map((i) => <Star key={i} className="w-2.5 h-2.5 fill-cyber-blue text-cyber-blue" />)}
-            </div>
-            <span className="text-[9px] uppercase tracking-[0.2em] font-medium">Trusted by People Worldwide</span>
-          </div>
         </section>
 
         {/* Section 2: FEATURES */}
         <section id="features" className="py-24 md:py-40 px-6 relative overflow-hidden">
           <div className="max-w-7xl mx-auto">
-            <div className="text-center mb-20">
+            <motion.div 
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-100px" }}
+              transition={{ duration: 0.8, ease: "easeOut" }}
+              className="text-center mb-20"
+            >
               <h2 className="text-4xl md:text-6xl font-black uppercase tracking-tighter mb-6 text-glow">
                 Keep Your Digital <span className="text-cyber-blue">Life Safe</span>
               </h2>
@@ -249,11 +248,11 @@ export function LandingPage({ onLogin, onGuest }: LandingPageProps) {
                 Easy-to-use tools designed to protect you from online threats. 
                 Stay safe with our modern security features.
               </p>
-            </div>
+            </motion.div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {features.map((f, i) => (
-                <Card key={i} {...f} />
+                <Card key={i} {...f} index={i} />
               ))}
             </div>
           </div>
@@ -262,20 +261,27 @@ export function LandingPage({ onLogin, onGuest }: LandingPageProps) {
         {/* Section 3: HOW IT WORKS */}
         <section id="how-it-works" className="py-24 md:py-40 px-6 relative">
           <div className="max-w-4xl mx-auto">
-            <div className="text-center mb-20">
+            <motion.div 
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-100px" }}
+              transition={{ duration: 0.8, ease: "easeOut" }}
+              className="text-center mb-20"
+            >
               <h2 className="text-4xl md:text-6xl font-black uppercase tracking-tighter mb-6 text-glow">
                 How <span className="text-cyber-blue">Credentia</span> Works
               </h2>
               <p className="text-white/60 text-sm md:text-lg">
                 A simple process to help you stay protected.
               </p>
-            </div>
+            </motion.div>
 
             <div className="relative space-y-12">
               {/* Connecting line */}
               <motion.div 
                 initial={{ height: 0 }}
                 whileInView={{ height: 'calc(100% - 64px)' }}
+                viewport={{ once: true, margin: "-50px" }}
                 transition={{ duration: 1.5, ease: "easeInOut" }}
                 className="absolute left-[27px] top-8 w-px bg-gradient-to-b from-cyber-blue/50 via-cyber-blue/10 to-transparent hidden md:block" 
               />
@@ -285,6 +291,7 @@ export function LandingPage({ onLogin, onGuest }: LandingPageProps) {
                   key={i}
                   initial={{ opacity: 0, x: -20 }}
                   whileInView={{ opacity: 1, x: 0 }}
+                  viewport={{ once: true, margin: "-50px" }}
                   className="flex items-start gap-6 relative"
                 >
                   <div className="w-14 h-14 rounded-2xl bg-cyber-blue/10 border border-cyber-blue/20 flex items-center justify-center shrink-0 z-10 backdrop-blur-md">
@@ -303,28 +310,17 @@ export function LandingPage({ onLogin, onGuest }: LandingPageProps) {
           </div>
         </section>
 
-        {/* STATS BAR */}
-        <section id="stats" className="py-16 bg-white/[0.01] border-y border-white/5 relative overflow-hidden backdrop-blur-sm">
-          <div className="max-w-7xl mx-auto px-6 grid grid-cols-2 md:grid-cols-4 gap-8">
-            {stats.map((s, i) => (
-              <div key={i} className="text-center group">
-                <div className="flex items-center justify-center gap-2 mb-2 text-cyber-blue/50 group-hover:text-cyber-blue transition-colors">
-                  {s.icon}
-                  <span className="text-[10px] uppercase font-bold tracking-[0.2em]">{s.label}</span>
-                </div>
-                <div className="text-3xl md:text-4xl font-black tracking-tighter text-white group-hover:scale-110 transition-transform duration-500">
-                  <Counter value={s.value} suffix={s.suffix} />
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-
         {/* Section 4: CONTACT & SUPPORT */}
         <section id="contact" className="py-16 md:py-40 px-6 relative">
           <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20">
-            <div className="flex flex-col justify-center">
-              <h2 className="text-3xl md:text-6xl font-black uppercase tracking-tighter mb-6 text-glow">
+            <motion.div 
+              initial={{ opacity: 0, x: -30 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true, margin: "-100px" }}
+              transition={{ duration: 0.8, ease: "easeOut" }}
+              className="flex flex-col justify-center items-center lg:items-start text-center lg:text-left"
+            >
+              <h2 className="text-3xl md:text-6xl font-black uppercase tracking-tighter mb-6 text-glow w-full">
                 Have <span className="text-cyber-blue">Questions?</span><br />
                 We're Here to Help.
               </h2>
@@ -332,8 +328,8 @@ export function LandingPage({ onLogin, onGuest }: LandingPageProps) {
                 Feel free to reach out. Our support team is available 24/7 and we'll get back to you as soon as possible.
               </p>
               
-              <div className="space-y-4">
-                <div className="inline-flex flex-col gap-1 p-5 bg-white/5 rounded-[24px] border border-white/10 hover:border-cyber-blue/50 transition-all group backdrop-blur-sm">
+              <div className="space-y-4 w-full max-w-md">
+                <div className="flex flex-col items-center lg:items-start gap-1 p-5 bg-white/5 rounded-[24px] border border-white/10 hover:border-cyber-blue/50 transition-all group backdrop-blur-sm w-full">
                   <span className="text-[10px] uppercase tracking-widest font-bold text-white/30 mb-2">Support Assistance</span>
                   <a 
                     href="mailto:credentiasupport@gmail.com"
@@ -346,12 +342,12 @@ export function LandingPage({ onLogin, onGuest }: LandingPageProps) {
                   </a>
                 </div>
               </div>
-            </div>
+            </motion.div>
 
             <motion.div 
               initial={{ opacity: 0, scale: 0.95 }}
               whileInView={{ opacity: 1, scale: 1 }}
-              viewport={{ once: true }}
+              viewport={{ once: true, margin: "-50px" }}
               className="bg-cyber-card/40 backdrop-blur-2xl border border-white/10 p-8 md:p-12 rounded-[48px] relative overflow-hidden shadow-2xl"
             >
               <div className="absolute top-0 right-0 w-32 h-32 bg-cyber-purple/5 rounded-full blur-[80px]" />
@@ -458,10 +454,6 @@ export function LandingPage({ onLogin, onGuest }: LandingPageProps) {
 
           <div className="pt-10 border-t border-white/10 flex flex-col md:flex-row justify-between items-center gap-4 text-[10px] font-bold uppercase tracking-[0.3em] text-white/60 text-center">
             <span>© 2026 Credentia. All Rights Reserved.</span>
-            <div className="flex items-center gap-6">
-              <span className="flex items-center gap-1.5 font-bold"><ShieldCheck className="w-3.5 h-3.5 text-cyber-blue" /> TLS 1.3 Active</span>
-              <span className="flex items-center gap-1.5 font-bold"><Code className="w-3.5 h-3.5 text-cyber-purple" /> Neural v4.2</span>
-            </div>
           </div>
         </div>
       </footer>
@@ -471,42 +463,6 @@ export function LandingPage({ onLogin, onGuest }: LandingPageProps) {
       <TermsOfService isOpen={showTerms} onClose={() => setShowTerms(false)} />
     </div>
   );
-}
-
-function Counter({ value, suffix }: { value: number, suffix: string }) {
-  const [count, setCount] = useState(0);
-  const ref = useRef(null);
-  const isInView = useInView(ref, { amount: 0.5 });
-
-  useEffect(() => {
-    if (!isInView) {
-      setCount(0);
-      return;
-    }
-
-    let start = 0;
-    const end = value;
-    const duration = 2000;
-    const stepTime = Math.abs(Math.floor(duration / end));
-    
-    // Slow down for very large numbers
-    const effectiveStepTime = value > 1000 ? 5 : stepTime;
-    const increment = value > 1000 ? Math.ceil(value / 100) : 1;
-
-    const timer = setInterval(() => {
-      start += increment;
-      if (start >= end) {
-        setCount(end);
-        clearInterval(timer);
-      } else {
-        setCount(start);
-      }
-    }, effectiveStepTime);
-
-    return () => clearInterval(timer);
-  }, [value, isInView]);
-
-  return <span ref={ref}>{count.toLocaleString()}{suffix}</span>;
 }
 
 function Modal({ children, onClose }: { children: React.ReactNode, onClose: () => void }) {
@@ -535,15 +491,17 @@ function Modal({ children, onClose }: { children: React.ReactNode, onClose: () =
   );
 }
 
-function Card({ icon, title, desc, color }: { icon: React.ReactNode, title: string, desc: string, color: string }) {
+function Card({ icon, title, desc, color, index }: { icon: React.ReactNode, title: string, desc: string, color: string, index: number }) {
   return (
     <motion.div 
-      initial={{ opacity: 0, y: 20 }}
+      initial={{ opacity: 0, y: 30 }}
       whileInView={{ opacity: 1, y: 0 }}
-      whileHover={{ y: -8 }}
-      className="p-8 bg-cyber-card rounded-[40px] border border-white/5 hover:border-white/20 transition-all group relative overflow-hidden"
+      viewport={{ once: true, margin: "-100px" }}
+      transition={{ duration: 0.6, delay: index * 0.1, ease: "easeOut" }}
+      whileHover={{ y: -8, transition: { duration: 0.2 } }}
+      className="p-8 bg-cyber-card/60 backdrop-blur-md rounded-[40px] border border-white/5 hover:border-cyber-blue/30 transition-all group relative overflow-hidden"
     >
-      <div className={cn("absolute top-0 right-0 w-32 h-32 opacity-5 rounded-full blur-[40px]", color.replace('text-', 'bg-'))} />
+      <div className={cn("absolute -top-12 -right-12 w-32 h-32 opacity-0 group-hover:opacity-10 transition-opacity rounded-full blur-[40px]", color)} />
       <div className="w-14 h-14 rounded-2xl bg-white/5 border border-white/5 flex items-center justify-center mb-6 group-hover:scale-110 group-hover:border-white/10 transition-all">
         {icon}
       </div>

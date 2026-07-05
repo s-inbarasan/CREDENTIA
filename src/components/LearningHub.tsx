@@ -5,13 +5,16 @@ import {
   Database, Cpu, Wifi, CheckCircle, ArrowLeft, ChevronRight, 
   PlayCircle, Smartphone, Mail, EyeOff, UserCheck, Zap, Award, 
   Flame, Target, LayoutGrid, Layers, Network, Star, Trophy,
-  LucideIcon, Brain, XCircle, Bot, Copy, Briefcase, Atom, Cloud, Box, Ghost, Binoculars, Scan
+  LucideIcon, Brain, XCircle, Bot, Copy, Briefcase, Atom, Cloud, Box, Ghost, Binoculars, Scan, X
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '../utils/cn';
 import { LEARNING_TOPICS } from '../data/learningTopics';
 import { Topic, UserDocument, QuizQuestion } from '../types';
 import { CyberOrb } from './CyberOrb';
+import { LessonPlayer } from './learning/LessonPlayer';
+import { ConversationQuiz } from './learning/ConversationQuiz';
+import { MODULE_DIALOGUES } from '../data/moduleDialogues';
 
 interface LearningHubProps {
   userDoc: UserDocument | null;
@@ -19,6 +22,7 @@ interface LearningHubProps {
   onCompleteTopic?: (topicId: string, xpReward: number) => void;
   onPassQuiz?: (topicId: string, score: number) => void;
   onQuizStateChange?: (isActive: boolean) => void;
+  onLogin?: () => void;
 }
 
 const ICONS: Record<string, LucideIcon> = {
@@ -29,86 +33,152 @@ const ICONS: Record<string, LucideIcon> = {
 
 const COURSES = [
   {
-    id: "B",
-    title: "Cybersecurity Fundamentals: Train Your Brain",
+    id: "BOOTCAMP",
+    title: "The Complete Cybersecurity Bootcamp: Zero to Hero",
     difficulty: "Beginner",
-    hook: "Start your cybersecurity journey here. Learn the essential mindset, privacy practices, and defensive tools to protect yourself online.",
-    target: "Everyone (Foundational skills).",
-    icon: "ShieldCheck",
-    image: "https://images.unsplash.com/photo-1550751827-4bd374c3f58b?auto=format&fit=crop&w=600&q=80",
-    color: "text-cyber-green",
-    bg: "bg-cyber-green/10",
-    border: "border-cyber-green/20",
-    glow: "shadow-cyber-green/20"
-  },
-  {
-    id: "C-SWA",
-    title: "The Synthetic Web & AI Defense",
-    difficulty: "Beginner",
-    hook: "You can no longer trust your eyes or ears. This course teaches users how to survive in an internet flooded with AI-generated content, autonomous hacking agents, and deepfakes.",
-    target: "Everyone.",
-    icon: "Binoculars",
-    image: "https://images.unsplash.com/photo-1620712943543-bcc4688e7485?auto=format&fit=crop&w=600&q=80",
+    hook: "Master the foundations of digital security. From zero knowledge to practical implementation, learn to protect systems, understand threats, and secure your digital life like a professional.",
+    target: "Beginners & Aspiring Security Professionals",
+    icon: "Brain",
+    image: "https://images.unsplash.com/photo-1614064641938-3bbee52942c7?auto=format&fit=crop&w=600&q=80",
     color: "text-cyber-blue",
     bg: "bg-cyber-blue/10",
     border: "border-cyber-blue/20",
     glow: "shadow-cyber-blue/20"
-  },
-  {
-    id: "C-IPF",
-    title: "Identity 3.0 & The Passwordless Future",
-    difficulty: "Intermediate",
-    hook: "Passwords are dead. This course transitions users from outdated security models to the modern standard of biometric and cryptographic identity.",
-    target: "General users.",
-    icon: "Scan",
-    image: "https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?auto=format&fit=crop&w=600&q=80",
-    color: "text-cyber-purple",
-    bg: "bg-cyber-purple/10",
-    border: "border-cyber-purple/20",
-    glow: "shadow-cyber-purple/20"
-  },
-  {
-    id: "C-SPZ",
-    title: "Spatial Privacy & Zero-Trust Living",
-    difficulty: "Intermediate",
-    hook: "The internet is no longer just on a screen; it’s in your home, your car, and your headset. This course secures the physical-digital bridge.",
-    target: "Smart home owners.",
-    icon: "Box",
-    image: "https://images.unsplash.com/photo-1558494949-ef010cbdcc31?auto=format&fit=crop&w=600&q=80",
-    color: "text-cyber-yellow",
-    bg: "bg-cyber-yellow/10",
-    border: "border-cyber-yellow/20",
-    glow: "shadow-cyber-yellow/20"
-  },
-  {
-    id: "C-CSD",
-    title: "Cloud Sovereignty & The Data Wars",
-    difficulty: "Advanced",
-    hook: "Data is the new oil, and you are the well. This course teaches users how to reclaim their digital footprint and secure their data.",
-    target: "Privacy advocates.",
-    icon: "Cloud",
-    image: "https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&w=600&q=80",
-    color: "text-cyber-red",
-    bg: "bg-cyber-red/10",
-    border: "border-cyber-red/20",
-    glow: "shadow-cyber-red/20"
-  },
-  {
-    id: "C-QRF",
-    title: "Quantum-Ready Foundations",
-    difficulty: "Expert",
-    hook: "Looking over the horizon. This is a prestige course that prepares forward-thinking users for the next massive shift in global technology.",
-    target: "Tech enthusiasts.",
-    icon: "Atom",
-    image: "https://images.unsplash.com/photo-1635070041078-e363dbe005cb?auto=format&fit=crop&w=600&q=80",
-    color: "text-cyber-green",
-    bg: "bg-cyber-green/10",
-    border: "border-cyber-green/20",
-    glow: "shadow-cyber-green/20"
   }
 ];
 
 // --- Sub-components ---
+
+const DialogueScene = ({ section }: { section: any }) => {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [activeLine, setActiveLine] = useState<number | null>(null);
+
+  const chars = section.characters ? Object.fromEntries(section.characters.map((c: any) => [c.id, c])) : {};
+
+  const toggleNarration = () => {
+    if (isPlaying) {
+      window.speechSynthesis.cancel();
+      setIsPlaying(false);
+      setActiveLine(null);
+    } else {
+      setIsPlaying(true);
+      playSequence(0);
+    }
+  };
+
+  const playSequence = (index: number) => {
+    if (!section.dialogue || index >= section.dialogue.length) {
+      setIsPlaying(false);
+      setActiveLine(null);
+      return;
+    }
+    
+    setActiveLine(index);
+    const line = section.dialogue[index];
+    const char = chars[line.characterId] || {};
+    
+    const utterance = new SpeechSynthesisUtterance(line.text);
+    const voices = window.speechSynthesis.getVoices();
+    
+    const isExpert = char.role === 'expert' || char.role === 'analyst';
+    if (isExpert && voices.length > 0) {
+      utterance.voice = voices.find(v => v.name.toLowerCase().includes('female') || v.name.toLowerCase().includes('samantha')) || voices[0];
+      utterance.pitch = 1.1;
+    } else if (!isExpert && voices.length > 1) {
+      utterance.voice = voices.find(v => v.name.toLowerCase().includes('male') || v.name.toLowerCase().includes('daniel')) || voices[1];
+      utterance.pitch = 0.9;
+    }
+    
+    utterance.rate = 1.05;
+
+    utterance.onend = () => {
+      // Continue to next line
+      playSequence(index + 1);
+    };
+    
+    utterance.onerror = (e) => {
+      console.error("Speech Synthesis Error:", e);
+      setIsPlaying(false);
+      setActiveLine(null);
+    };
+
+    window.speechSynthesis.speak(utterance);
+  };
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => window.speechSynthesis.cancel();
+  }, [section.id]);
+
+  return (
+    <div className="bg-[#0A0D14] p-5 sm:p-8 rounded-3xl border border-white/10 relative overflow-hidden mb-6 shadow-2xl">
+      <div className="flex items-center justify-between mb-8 pb-4 border-b border-white/5">
+        <h3 className="text-xl font-bold flex items-center gap-2 text-white">
+          <Library className="w-5 h-5 text-cyber-blue" />
+          {section.title}
+        </h3>
+        <button 
+          onClick={toggleNarration}
+          className={cn(
+            "flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold transition-all border",
+            isPlaying 
+              ? "bg-red-500/20 text-red-400 border-red-500/50 shadow-[0_0_15px_rgba(239,68,68,0.2)]" 
+              : "bg-cyber-blue/10 text-cyber-blue border-cyber-blue/30 hover:bg-cyber-blue/20"
+          )}
+        >
+          {isPlaying ? <XCircle className="w-4 h-4" /> : <PlayCircle className="w-4 h-4" />}
+          {isPlaying ? "Stop Audio" : "Listen via TTS"}
+        </button>
+      </div>
+
+      <div className="space-y-6">
+        {section.dialogue?.map((line: any, idx: number) => {
+          const char = chars[line.characterId];
+          if (!char) return null;
+          
+          const isLeft = char.role === 'expert' || char.role === 'analyst';
+          const isActive = activeLine === idx;
+          const AvatarIcon = ICONS[char.avatarStr] || UserCheck;
+
+          return (
+            <motion.div 
+              key={idx}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: idx * 0.1 }}
+              className={cn(
+                "flex gap-4 w-full",
+                isLeft ? "flex-row" : "flex-row-reverse"
+              )}
+            >
+              <div className="flex flex-col items-center">
+                <div className={cn(
+                  "w-10 h-10 rounded-full flex items-center justify-center border-2 shrink-0 transition-transform",
+                  isLeft ? "bg-black border-cyber-blue" : "bg-black border-cyber-green",
+                  isActive ? "scale-110 shadow-[0_0_20px_rgba(0,240,255,0.4)]" : "opacity-80"
+                )}>
+                  <AvatarIcon className={cn("w-5 h-5", char.color)} />
+                </div>
+                <span className="text-[10px] text-white/40 mt-1 uppercase tracking-wider font-bold">{char.name}</span>
+              </div>
+              
+              <div className={cn(
+                "max-w-[80%] rounded-2xl p-4 sm:p-5 relative transition-all duration-300",
+                isLeft ? "bg-white/5 border border-white/10 rounded-tl-sm" : "bg-cyber-blue/10 border border-cyber-blue/20 rounded-tr-sm",
+                isActive && isLeft ? "border-cyber-blue shadow-[0_0_15px_rgba(0,150,255,0.15)] bg-white/10" : "",
+                isActive && !isLeft ? "border-cyber-green shadow-[0_0_15px_rgba(0,255,100,0.15)] bg-cyber-blue/20" : ""
+              )}>
+                <p className="text-white/90 text-sm sm:text-base leading-relaxed tracking-wide font-medium">
+                  {line.text}
+                </p>
+              </div>
+            </motion.div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
 
 const ProgressRing = ({ progress, size = 40, strokeWidth = 3, color = "currentColor" }: { progress: number, size?: number, strokeWidth?: number, color?: string }) => {
   const radius = (size - strokeWidth) / 2;
@@ -266,7 +336,7 @@ const SkillTreeModal = ({ isOpen, onClose, completedTopics }: { isOpen: boolean,
   );
 };
 
-export function LearningHub({ userDoc, onTopicMastered, onCompleteTopic, onPassQuiz, onQuizStateChange }: LearningHubProps) {
+export function LearningHub({ userDoc, onTopicMastered, onCompleteTopic, onPassQuiz, onQuizStateChange, onLogin }: LearningHubProps) {
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
   const [isCourseStarted, setIsCourseStarted] = useState(false);
   const [selectedTopic, setSelectedTopic] = useState<Topic | null>(null);
@@ -278,12 +348,13 @@ export function LearningHub({ userDoc, onTopicMastered, onCompleteTopic, onPassQ
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [isAnswerCorrect, setIsAnswerCorrect] = useState<boolean | null>(null);
   const [isSkillTreeOpen, setIsSkillTreeOpen] = useState(false);
+  const [expandedImage, setExpandedImage] = useState<string | null>(null);
 
   // Filter out old progress (CRITICAL RESET)
   const completedTopics = useMemo(() => {
     const topics = userDoc?.completedTopics || [];
-    // Allow both old 'module-' format and new 'B-M1', 'I-M1', 'A-M1' formats
-    return topics.filter(id => id.startsWith('module-') || /^[BIA]-M\d+$/.test(id));
+    // Allow both old 'module-' format and new 'B-M1', 'I-M1', 'A-M1', 'BC-M1' formats
+    return topics.filter(id => id.startsWith('module-') || /^[A-Z]+-M\d+$/.test(id));
   }, [userDoc]);
 
   useEffect(() => {
@@ -310,6 +381,13 @@ export function LearningHub({ userDoc, onTopicMastered, onCompleteTopic, onPassQ
   const handleTopicClick = (topic: Topic) => {
     setSelectedTopic(topic);
     setCurrentSectionIndex(0);
+  };
+
+  const handleLessonPlayerComplete = (xpEarned: number) => {
+    if (selectedTopic) {
+      if (onCompleteTopic) onCompleteTopic(selectedTopic.id, xpEarned);
+      setActiveQuiz(selectedTopic);
+    }
   };
 
   const handleBack = () => {
@@ -539,29 +617,35 @@ export function LearningHub({ userDoc, onTopicMastered, onCompleteTopic, onPassQ
               <ArrowLeft className="w-4 h-4" /> Back to Academy
             </button>
 
-            <div className="bg-cyber-card p-6 sm:p-12 rounded-3xl sm:rounded-[3rem] border border-white/5 relative overflow-hidden shadow-2xl">
-              <div className="absolute top-0 right-0 p-6 sm:p-12 opacity-5 pointer-events-none">
-                <Icon className="w-32 h-32 sm:w-64 h-64" />
-              </div>
-              <div className="relative z-10 space-y-6 sm:space-y-8 text-center md:text-left">
-                <div className={cn("inline-flex p-4 sm:p-6 rounded-2xl sm:rounded-3xl mx-auto md:mx-0", course.bg, course.color)}>
-                  <Icon className="w-8 h-8 sm:w-12 h-12" />
+            <div className="bg-cyber-card p-5 sm:p-8 rounded-2xl sm:rounded-3xl border border-white/5 relative overflow-hidden shadow-2xl">
+              <div className="relative z-10 space-y-4 text-center md:text-left">
+                <div className={cn("inline-flex p-3 sm:p-4 rounded-xl sm:rounded-2xl mx-auto md:mx-0", course.bg, course.color)}>
+                  <Icon className="w-6 h-6 sm:w-8 h-8" />
                 </div>
-                <div className="space-y-3 sm:space-y-4">
-                  <h1 className="text-3xl sm:text-5xl font-bold tracking-tight">{course.title}</h1>
-                  <p className="text-base sm:text-xl text-white/60 max-w-2xl leading-relaxed mx-auto md:mx-0">{course.hook}</p>
+                <div className="space-y-2">
+                  <h1 className="text-xl sm:text-2xl font-black tracking-tight uppercase">{course.title}</h1>
+                  <p className="text-xs sm:text-sm text-white/50 max-w-xl leading-relaxed mx-auto md:mx-0">{course.hook}</p>
                 </div>
-                <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 sm:gap-8 text-[10px] sm:text-sm font-mono text-white/40">
-                  <span className="flex items-center gap-2"><UserCheck className="w-4 h-4 text-cyber-blue" /> {course.target}</span>
-                  <span className="flex items-center gap-2"><Layers className="w-4 h-4 text-cyber-purple" /> 4 Modules</span>
-                  <span className="flex items-center gap-2"><Award className="w-4 h-4 text-cyber-yellow" /> {course.difficulty}</span>
+                <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 sm:gap-6 text-[9px] sm:text-xs font-mono text-white/40">
+                  <span className="flex items-center gap-1.5"><UserCheck className="w-3.5 h-3.5 text-cyber-blue" /> {course.target}</span>
+                  <span className="flex items-center gap-1.5"><Layers className="w-3.5 h-3.5 text-cyber-purple" /> {courseTopics.length} Modules</span>
+                  <span className="flex items-center gap-1.5"><Award className="w-3.5 h-3.5 text-cyber-yellow" /> {course.difficulty}</span>
                 </div>
-                <div className="pt-4 sm:pt-8">
+                <div className="pt-2 sm:pt-4">
                   <button 
-                    onClick={() => setIsCourseStarted(true)}
-                    className="w-full md:w-auto px-8 sm:px-12 py-4 sm:py-5 bg-cyber-blue text-black font-bold rounded-xl sm:rounded-2xl hover:scale-105 transition-all shadow-[0_0_30px_rgba(0,240,255,0.3)] flex items-center justify-center gap-3 text-base sm:text-lg"
+                    onClick={() => {
+                      if (!userDoc || !userDoc.email) {
+                        toast.error("Account Required", {
+                          description: "Please log in or sign up to start the course and save your progress."
+                        });
+                        if (onLogin) onLogin();
+                        return;
+                      }
+                      setIsCourseStarted(true);
+                    }}
+                    className="w-full md:w-auto px-6 py-3 bg-cyber-blue text-black font-black uppercase tracking-widest rounded-xl hover:scale-105 transition-all shadow-[0_0_20px_rgba(0,242,255,0.2)] flex items-center justify-center gap-2 text-xs"
                   >
-                    START COURSE <ChevronRight className="w-5 h-5" />
+                    START COURSE <ChevronRight className="w-4 h-4" />
                   </button>
                 </div>
               </div>
@@ -620,11 +704,16 @@ export function LearningHub({ userDoc, onTopicMastered, onCompleteTopic, onPassQ
                         isLocked ? "bg-white/5 text-white/10" :
                         isCompleted ? "bg-cyber-blue text-black shadow-[0_0_20px_rgba(0,240,255,0.4)]" : "bg-white/10 text-white"
                       )}>
-                        {isLocked ? <Lock className="w-5 h-5 sm:w-6 h-6" /> : index + 1}
+                        {isLocked ? <Lock className="w-5 h-5 sm:w-6 sm:h-6" /> : index + 1}
                       </div>
-                      <div className="text-left">
-                        <h4 className={cn("text-base sm:text-xl font-bold", isLocked ? "text-white/20" : "text-white")}>
+                      <div className="text-left relative">
+                        <h4 className={cn("text-base sm:text-xl font-bold flex flex-wrap items-center gap-2", isLocked ? "text-white/20" : "text-white")}>
                           {cleanText(topic.title.includes(': ') ? topic.title.split(': ')[1] : topic.title)}
+                          {MODULE_DIALOGUES.find(d => d.id === topic.id) && !isLocked && (
+                            <span className="text-[9px] bg-cyber-blue/20 text-cyber-blue px-2 py-0.5 rounded-full border border-cyber-blue/30 uppercase tracking-widest shrink-0">
+                              Story Mode
+                            </span>
+                          )}
                         </h4>
                         <p className={cn("text-xs sm:text-sm mt-1 line-clamp-1", isLocked ? "text-white/10" : "text-white/40")}>
                           {isLocked ? "Complete previous module to unlock" : cleanText(topic.sections?.[0]?.content?.substring(0, 80) || "") + "..."}
@@ -663,6 +752,32 @@ export function LearningHub({ userDoc, onTopicMastered, onCompleteTopic, onPassQ
 
   // --- Render Topic Detail ---
   if (selectedTopic) {
+    const dialogue = MODULE_DIALOGUES.find(d => d.id === selectedTopic.id);
+
+    if (dialogue) {
+      if (activeQuiz) {
+        return (
+          <ConversationQuiz 
+            questions={selectedTopic.quiz} 
+            onComplete={(score) => {
+              if (onPassQuiz) onPassQuiz(selectedTopic.id, score);
+              setActiveQuiz(null);
+              setSelectedTopic(null);
+            }} 
+          />
+        );
+      }
+
+      return (
+        <LessonPlayer 
+          topic={selectedTopic} 
+          dialogue={dialogue} 
+          onComplete={handleLessonPlayerComplete} 
+          onClose={() => setSelectedTopic(null)} 
+        />
+      );
+    }
+
     const Icon = ICONS[selectedTopic.icon] || Library;
     const colors = getLevelColor(selectedTopic.level);
     return (
@@ -893,28 +1008,166 @@ export function LearningHub({ userDoc, onTopicMastered, onCompleteTopic, onPassQ
                           </div>
                         )}
 
-                        {section.type === 'ai_prompt' && (
-                          <div className="bg-gradient-to-br from-cyber-blue/10 to-cyber-purple/10 p-6 sm:p-8 rounded-2xl sm:rounded-3xl border border-white/10 text-center space-y-4 sm:space-y-6 relative overflow-hidden">
-                            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-cyber-blue via-cyber-purple to-cyber-blue opacity-50" />
-                            <div className="w-12 h-12 sm:w-16 h-16 mx-auto bg-black/50 rounded-xl sm:rounded-2xl flex items-center justify-center text-cyber-blue mb-2 sm:mb-4 border border-cyber-blue/30 shadow-[0_0_30px_rgba(0,240,255,0.2)]">
-                              <Brain className="w-6 h-6 sm:w-8 h-8" />
-                            </div>
-                            <h3 className="text-xl sm:text-2xl font-bold">AI Mentor Prompt</h3>
-                            <p className="text-sm sm:text-base text-white/80 max-w-lg mx-auto">
-                              Try asking the AI Mentor this prompt to deepen your understanding:
-                            </p>
-                            <div className="bg-black/60 p-4 sm:p-6 rounded-xl sm:rounded-2xl border border-white/10 text-left relative group shadow-inner">
-                              <p className="text-cyber-blue font-mono text-xs sm:text-sm leading-relaxed">{cleanText(section.prompt || "")}</p>
-                              <button 
-                                onClick={() => {
-                                  navigator.clipboard.writeText(section.prompt || "");
-                                  toast.success("Prompt copied to clipboard!");
-                                }}
-                                className="absolute top-2 right-2 sm:top-4 sm:right-4 p-2 bg-white/10 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-white/20 hover:text-cyber-blue"
+                        {section.type === 'visual' && (
+                          <div className="bg-white/5 p-5 sm:p-8 rounded-2xl sm:rounded-3xl border border-white/10">
+                            <h3 className="text-lg sm:text-xl font-bold text-cyber-blue mb-4 flex items-center gap-2">
+                              <Eye className="w-5 h-5 sm:w-6 h-6" />
+                              {cleanText(section.title)}
+                            </h3>
+                            {section.content && (
+                              <p className="text-base sm:text-lg text-white/90 leading-relaxed mb-6">
+                                {cleanText(section.content)}
+                              </p>
+                            )}
+                            {section.imageUrl && (
+                              <motion.div 
+                                layoutId={`img-container-${section.imageUrl}`}
+                                className="rounded-xl overflow-hidden mb-6 border border-white/10 relative group cursor-zoom-in"
+                                onClick={() => setExpandedImage(section.imageUrl!)}
                               >
-                                <Copy className="w-3 h-3 sm:w-4 h-4" />
-                              </button>
+                                <motion.img 
+                                  layoutId={`img-${section.imageUrl}`}
+                                  src={section.imageUrl} 
+                                  alt={section.imageAlt || "Visual explanation"} 
+                                  className="w-full h-auto object-cover group-hover:scale-105 transition-transform duration-500" 
+                                />
+                                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                                  <div className="bg-black/60 backdrop-blur-sm p-3 rounded-full border border-white/20 text-white flex items-center gap-2 text-sm font-bold">
+                                    <Scan className="w-4 h-4" /> Expand Image
+                                  </div>
+                                </div>
+                              </motion.div>
+                            )}
+                            {section.videoUrl && (
+                              <div className="aspect-video rounded-xl overflow-hidden border border-white/10 bg-black relative">
+                                {(section.videoUrl.includes('youtube.com') || section.videoUrl.includes('youtu.be')) ? (
+                                  <iframe 
+                                    src={section.videoUrl} 
+                                    title="Video explanation" 
+                                    className="w-full h-full"
+                                    allowFullScreen 
+                                  />
+                                ) : (
+                                  <video 
+                                    src={section.videoUrl} 
+                                    controls 
+                                    className="w-full h-full object-contain"
+                                    preload="metadata"
+                                  />
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {section.type === 'step_by_step' && (
+                          <div className="bg-white/5 p-5 sm:p-8 rounded-2xl sm:rounded-3xl border border-white/10">
+                            <h3 className="text-lg sm:text-xl font-bold text-cyber-yellow mb-6 flex items-center gap-2">
+                              <Target className="w-5 h-5 sm:w-6 h-6" />
+                              {cleanText(section.title)}
+                            </h3>
+                            {section.content && (
+                              <p className="text-base sm:text-lg text-white/90 leading-relaxed mb-6">
+                                {cleanText(section.content)}
+                              </p>
+                            )}
+                            <div className="space-y-6">
+                              {section.steps?.map((step, i) => (
+                                <div key={i} className="flex flex-col sm:flex-row gap-4 sm:gap-6 items-start">
+                                  <div className="w-8 h-8 rounded-full bg-cyber-yellow/20 text-cyber-yellow font-bold flex items-center justify-center shrink-0 border border-cyber-yellow/30 shadow-[0_0_15px_rgba(255,215,0,0.2)]">
+                                    {i + 1}
+                                  </div>
+                                  <div className="bg-black/30 p-4 sm:p-6 rounded-xl border border-white/5 flex-grow w-full border-l-2 border-l-cyber-yellow/50">
+                                    <h4 className="font-bold text-white mb-2">{cleanText(step.title)}</h4>
+                                    <p className="text-sm sm:text-base text-white/80">{cleanText(step.description)}</p>
+                                  </div>
+                                </div>
+                              ))}
                             </div>
+                          </div>
+                        )}
+
+                        {section.type === 'real_world' && (
+                          <div className="bg-white/5 p-5 sm:p-8 rounded-2xl sm:rounded-3xl border border-white/10">
+                            <h3 className="text-lg sm:text-xl font-bold text-cyber-green mb-4 flex items-center gap-2">
+                              <Globe className="w-5 h-5 sm:w-6 h-6" />
+                              {cleanText(section.title)}
+                            </h3>
+                            {section.content && (
+                              <p className="text-base sm:text-lg text-white/90 leading-relaxed mb-6">
+                                {cleanText(section.content)}
+                              </p>
+                            )}
+                            {section.realWorldScenario && (
+                              <div className="bg-cyber-green/5 p-4 sm:p-6 rounded-xl sm:rounded-2xl border border-cyber-green/20 mb-6 relative overflow-hidden">
+                                <div className="absolute top-0 right-0 w-32 h-32 bg-cyber-green/10 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none" />
+                                <h4 className="font-bold text-cyber-green mb-2 uppercase tracking-widest text-[10px] sm:text-xs">Scenario</h4>
+                                <p className="text-sm sm:text-base text-white/80">{cleanText(section.realWorldScenario)}</p>
+                              </div>
+                            )}
+                            {section.realWorldImpact && (
+                              <div className="bg-black/30 p-4 rounded-xl border border-white/5">
+                                <h4 className="font-bold text-white/60 mb-2 uppercase tracking-widest text-[10px] sm:text-xs text-cyber-green">The Impact</h4>
+                                <p className="text-sm sm:text-base text-white/80 font-medium">{cleanText(section.realWorldImpact)}</p>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {section.type === 'common_mistakes' && (
+                          <div className="bg-white/5 p-5 sm:p-8 rounded-2xl sm:rounded-3xl border border-white/10">
+                            <h3 className="text-lg sm:text-xl font-bold text-cyber-red mb-6 flex items-center gap-2">
+                              <AlertTriangle className="w-5 h-5 sm:w-6 h-6" />
+                              {cleanText(section.title)}
+                            </h3>
+                            {section.content && (
+                              <p className="text-base sm:text-lg text-white/90 leading-relaxed mb-6">
+                                {cleanText(section.content)}
+                              </p>
+                            )}
+                            <div className="grid gap-4 sm:grid-cols-2">
+                              {section.mistakes?.map((m, i) => (
+                                <div key={i} className="bg-black/40 p-5 rounded-xl border border-cyber-red/20 group hover:border-cyber-red/40 transition-colors">
+                                  <div className="flex items-start gap-3 mb-3">
+                                    <XCircle className="w-5 h-5 text-cyber-red shrink-0 mt-0.5" />
+                                    <p className="text-sm text-white/90 font-medium">{cleanText(m.mistake)}</p>
+                                  </div>
+                                  <div className="flex items-start gap-3 pt-3 border-t border-white/5">
+                                    <CheckCircle className="w-5 h-5 text-cyber-green shrink-0 mt-0.5" />
+                                    <p className="text-xs sm:text-sm text-white/70">{cleanText(m.correction)}</p>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {section.type === 'advanced' && (
+                          <div className="bg-white/5 p-5 sm:p-8 rounded-2xl sm:rounded-3xl border border-white/10 relative overflow-hidden">
+                            <div className="absolute top-0 right-0 w-64 h-64 bg-cyber-purple/10 rounded-full blur-3xl pointer-events-none" />
+                            <h3 className="text-lg sm:text-xl font-bold text-cyber-purple mb-4 flex items-center gap-2">
+                              <Zap className="w-5 h-5 sm:w-6 h-6 group-hover:animate-pulse" />
+                              {cleanText(section.title)}
+                            </h3>
+                            {section.content && (
+                              <p className="text-base sm:text-lg text-white/90 leading-relaxed mb-6">
+                                {cleanText(section.content)}
+                              </p>
+                            )}
+                            {section.deepDive && (
+                              <div className="bg-cyber-purple/5 p-5 rounded-xl border border-cyber-purple/20 mb-6 shadow-inner font-mono text-sm leading-relaxed text-white/80">
+                                {cleanText(section.deepDive)}
+                              </div>
+                            )}
+                            {section.advancedInsight && (
+                              <div className="flex items-start gap-4 p-4 bg-black/30 rounded-xl border-l-2 border-l-cyber-purple">
+                                <Brain className="w-6 h-6 text-cyber-purple shrink-0" />
+                                <div>
+                                  <h4 className="text-xs font-bold text-cyber-purple uppercase tracking-widest mb-1">Expert Insight</h4>
+                                  <p className="text-sm sm:text-base text-white/90">{cleanText(section.advancedInsight)}</p>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         )}
 
@@ -1066,7 +1319,56 @@ export function LearningHub({ userDoc, onTopicMastered, onCompleteTopic, onPassQ
             );
           })}
         </div>
+
+        {/* Upcoming Courses Announcement */}
+        <motion.div 
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="p-6 rounded-3xl bg-cyber-card/30 border border-dashed border-white/10 text-center flex flex-col items-center justify-center gap-2 max-w-md mx-auto mt-8"
+        >
+          <div className="w-10 h-10 rounded-full bg-white/5 border border-white/5 flex items-center justify-center text-white/30">
+            <Trophy className="w-5 h-5 text-cyber-yellow" />
+          </div>
+          <p className="text-xs font-bold text-white/80 uppercase tracking-widest">More courses are yet to come</p>
+          <p className="text-[11px] text-white/40 leading-relaxed max-w-xs">
+            Our security researchers are hard at work formulating advanced chapters on DevSecOps, Smart Contract auditing, and AI defense vectors.
+          </p>
+        </motion.div>
       </section>
+
+      {/* Image Lightbox */}
+      <AnimatePresence>
+        {expandedImage && (
+          <div className="fixed inset-0 z-[500] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }} 
+              animate={{ opacity: 1 }} 
+              exit={{ opacity: 0 }} 
+              onClick={() => setExpandedImage(null)}
+              className="absolute inset-0 bg-black/90 backdrop-blur-md cursor-zoom-out" 
+            />
+            <motion.div 
+              layoutId={`img-container-${expandedImage}`}
+              className="relative w-full max-w-5xl max-h-[90vh] overflow-hidden rounded-2xl sm:rounded-[2rem] border border-white/10 shadow-2xl bg-black flex items-center justify-center cursor-default"
+            >
+              <button 
+                onClick={() => setExpandedImage(null)}
+                className="absolute top-4 right-4 z-10 p-2 sm:p-3 bg-black/50 hover:bg-white/10 rounded-full text-white/70 hover:text-white transition-colors border border-white/10 backdrop-blur-md"
+              >
+                <X className="w-5 h-5 sm:w-6 sm:h-6" />
+              </button>
+              <motion.img 
+                layoutId={`img-${expandedImage}`}
+                src={expandedImage} 
+                alt="Expanded view" 
+                className="w-full max-h-[90vh] object-contain cursor-zoom-out"
+                onClick={() => setExpandedImage(null)}
+              />
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }

@@ -10,24 +10,9 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  // API routes FIRST
+  // API routes
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok" });
-  });
-
-  // Serve presentation.html directly
-  app.get("/presentation.html", (req, res) => {
-    res.sendFile(path.join(process.cwd(), 'public', 'presentation.html'));
-  });
-
-  // Example OpenAI route (placeholder for future use)
-  app.post("/api/openai", express.json(), async (req, res) => {
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) {
-      return res.status(500).json({ error: "OPENAI_API_KEY is not configured" });
-    }
-    // Handle OpenAI logic here...
-    res.json({ message: "OpenAI endpoint ready" });
   });
 
   // Breach monitoring proxy route

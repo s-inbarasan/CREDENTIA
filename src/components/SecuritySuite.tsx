@@ -1,47 +1,98 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Cpu, 
-  FileCode, 
-  Search, 
-  Code, 
-  Shield, 
-  Zap, 
-  Copy, 
-  Check, 
-  Terminal,
-  Activity,
-  Tickets,
-  Info,
-  Server
+  Cpu, FileCode, Search, Shield, Zap, Lock, Terminal, Activity, Tickets, Server, BookOpen, AlertOctagon, Info, Code, Aperture as ApertureIcon, X, Copy, Check, PlugZap, Radar,
+  ChevronDown, ChevronUp, Trash2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../utils/cn';
+import zxcvbn from 'zxcvbn';
 
 // --- Utility Components ---
 
-const ToolCard: React.FC<{ 
+const CollapsibleToolCard: React.FC<{ 
   title: string; 
+  description: string;
+  usage: string;
   icon: React.ComponentType<{ className?: string }>; 
   colorClass: string; 
   children: React.ReactNode;
-  points?: string;
-}> = ({ title, icon: Icon, colorClass, children, points }) => {
-  const bgClass = colorClass.replace('text-', 'bg-').concat('/10');
-  
+  isExpanded: boolean;
+  onToggle: () => void;
+}> = ({ title, description, usage, icon: Icon, colorClass, children, isExpanded, onToggle }) => {
   return (
-    <div className="bg-cyber-card p-5 rounded-3xl border border-white/5 relative overflow-hidden flex flex-col h-full">
-      {points && (
-        <div className={cn("absolute top-4 right-4 text-[10px] font-bold flex items-center gap-1 px-2 py-1 rounded-full", bgClass, colorClass)}>
-          <Zap className="w-3 h-3" /> {points}
+    <div className={cn(
+      "bg-cyber-card/45 border rounded-3xl transition-all duration-300 relative overflow-hidden flex flex-col",
+      isExpanded 
+        ? "border-cyber-blue/45 shadow-[0_0_30px_rgba(0,242,255,0.06)] bg-cyber-card/90" 
+        : "border-white/5 hover:border-white/15 hover:bg-cyber-card/60"
+    )}>
+      {/* Header Bar */}
+      <button 
+        onClick={onToggle}
+        className="flex items-center justify-between w-full p-5 text-left transition-colors cursor-pointer group"
+      >
+        <div className="flex items-center gap-3.5 pr-4 overflow-hidden w-full">
+          <div className={cn(
+            "p-2.5 rounded-xl border border-white/5 bg-white/5 flex items-center justify-center shrink-0 transition-all",
+            isExpanded ? "border-cyber-blue/20 bg-cyber-blue/5 text-cyber-blue" : "text-white/70"
+          )}>
+            <Icon className="w-5 h-5" />
+          </div>
+          <div className="overflow-hidden">
+            <h3 className="text-sm md:text-base font-bold tracking-tight text-white uppercase">{title}</h3>
+            {!isExpanded && (
+              <p className="text-[11px] md:text-xs text-white/40 truncate font-medium mt-0.5">{description}</p>
+            )}
+          </div>
         </div>
-      )}
-      <h3 className="text-sm font-bold mb-4 flex items-center gap-2">
-        <Icon className={cn("w-4 h-4", colorClass)} />
-        {title}
-      </h3>
-      <div className="flex-1">
-        {children}
-      </div>
+        
+        <div className="flex items-center gap-3 shrink-0">
+          <div className={cn(
+            "w-8 h-8 rounded-full bg-white/5 border border-white/5 flex items-center justify-center text-white/50 transition-all",
+            isExpanded ? "rotate-180 border-cyber-blue/30 text-cyber-blue bg-cyber-blue/5" : "group-hover:bg-white/10 group-hover:text-white"
+          )}>
+            <ChevronDown className="w-4 h-4 transition-transform duration-300" />
+          </div>
+        </div>
+      </button>
+
+      {/* Expanded Content with Framer Motion */}
+      <AnimatePresence initial={false}>
+        {isExpanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.35, ease: "easeInOut" }}
+            className="overflow-hidden"
+          >
+            <div className="p-6 pt-1 border-t border-white/5 flex flex-col gap-6 bg-black/15">
+              {/* Tool Protocol Info */}
+              <div className="p-4 bg-cyber-blue/5 border border-cyber-blue/10 rounded-2xl flex flex-col gap-1 text-[11px]">
+                <div className="flex items-center gap-1.5 font-bold uppercase tracking-wider text-cyber-blue">
+                  <Info className="w-3.5 h-3.5" /> Protocol Parameters
+                </div>
+                <p className="text-white/60 leading-relaxed font-medium mt-1">{usage}</p>
+              </div>
+
+              {/* Tool Interactive Workspace */}
+              <div className="p-5 bg-black/40 rounded-2xl border border-white/5 shadow-inner">
+                {children}
+              </div>
+
+              {/* Close Button at bottom of expanded section */}
+              <div className="flex justify-end pt-2 border-t border-white/5">
+                <button
+                  onClick={onToggle}
+                  className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 rounded-xl text-[10px] font-black uppercase tracking-widest text-white/50 hover:text-white transition-all cursor-pointer"
+                >
+                  Close Tool <ChevronUp className="w-3.5 h-3.5 text-cyber-blue" />
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
@@ -56,6 +107,7 @@ const HashLab = () => {
   const [algo, setAlgo] = useState<'SHA-256' | 'SHA-512'>('SHA-256');
   const [hash, setHash] = useState('');
   const [copied, setCopied] = useState(false);
+  const [showConfirmClear, setShowConfirmClear] = useState(false);
 
   useEffect(() => {
     const generateHash = async () => {
@@ -81,10 +133,47 @@ const HashLab = () => {
   return (
     <div className="space-y-4">
       <div className="space-y-2">
-        <label className="text-[10px] text-white/40 uppercase font-bold tracking-widest pl-1">Input Text</label>
+        <div className="flex justify-between items-center pl-1">
+          <label className="text-[10px] text-white/40 uppercase font-bold tracking-widest">Input Text</label>
+          {input && (
+            <div className="flex items-center gap-1.5">
+              {showConfirmClear ? (
+                <div className="flex items-center gap-1.5 bg-black/40 border border-cyber-red/30 px-2 py-0.5 rounded-lg text-[9px] animate-fade-in">
+                  <span className="text-cyber-red/80 font-bold">Clear?</span>
+                  <button 
+                    onClick={() => {
+                      setInput('');
+                      setShowConfirmClear(false);
+                    }}
+                    className="text-cyber-green hover:underline font-black uppercase cursor-pointer"
+                  >
+                    Yes
+                  </button>
+                  <span className="text-white/20">|</span>
+                  <button 
+                    onClick={() => setShowConfirmClear(false)}
+                    className="text-white/40 hover:text-white hover:underline uppercase cursor-pointer"
+                  >
+                    No
+                  </button>
+                </div>
+              ) : (
+                <button 
+                  onClick={() => setShowConfirmClear(true)}
+                  className="text-[9px] font-black uppercase tracking-wider text-cyber-red/60 hover:text-cyber-red flex items-center gap-1 transition-colors cursor-pointer"
+                >
+                  <Trash2 className="w-3 h-3" /> Clear
+                </button>
+              )}
+            </div>
+          )}
+        </div>
         <textarea
           value={input}
-          onChange={(e) => setInput(e.target.value)}
+          onChange={(e) => {
+            setInput(e.target.value);
+            if (showConfirmClear) setShowConfirmClear(false);
+          }}
           placeholder="Paste text to hash..."
           className="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-3 text-xs md:text-sm focus:outline-none focus:border-cyber-blue/50 h-24 resize-none font-mono"
         />
@@ -136,6 +225,7 @@ const CyberDecoder = () => {
   const [format, setFormat] = useState<'Base64' | 'Hex' | 'URL'>('Base64');
   const [output, setOutput] = useState('');
   const [error, setError] = useState(false);
+  const [showConfirmClear, setShowConfirmClear] = useState(false);
 
   useEffect(() => {
     if (!input) {
@@ -208,10 +298,47 @@ const CyberDecoder = () => {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="space-y-2">
-          <label className="text-[10px] text-white/40 uppercase font-bold tracking-widest pl-1">Input</label>
+          <div className="flex justify-between items-center pl-1">
+            <label className="text-[10px] text-white/40 uppercase font-bold tracking-widest">Input</label>
+            {input && (
+              <div className="flex items-center gap-1.5">
+                {showConfirmClear ? (
+                  <div className="flex items-center gap-1.5 bg-black/40 border border-cyber-red/30 px-2 py-0.5 rounded-lg text-[9px] animate-fade-in">
+                    <span className="text-cyber-red/80 font-bold">Clear?</span>
+                    <button 
+                      onClick={() => {
+                        setInput('');
+                        setShowConfirmClear(false);
+                      }}
+                      className="text-cyber-green hover:underline font-black uppercase cursor-pointer"
+                    >
+                      Yes
+                    </button>
+                    <span className="text-white/20">|</span>
+                    <button 
+                      onClick={() => setShowConfirmClear(false)}
+                      className="text-white/40 hover:text-white hover:underline uppercase cursor-pointer"
+                    >
+                      No
+                    </button>
+                  </div>
+                ) : (
+                  <button 
+                    onClick={() => setShowConfirmClear(true)}
+                    className="text-[9px] font-black uppercase tracking-wider text-cyber-red/60 hover:text-cyber-red flex items-center gap-1 transition-colors cursor-pointer"
+                  >
+                    <Trash2 className="w-3 h-3" /> Clear
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
           <textarea
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={(e) => {
+              setInput(e.target.value);
+              if (showConfirmClear) setShowConfirmClear(false);
+            }}
             className="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-3 text-xs font-mono h-24 resize-none"
             placeholder="Input data..."
           />
@@ -300,6 +427,122 @@ const PortExplorer = () => {
 };
 
 /**
+ * Regex Pattern Tester
+ */
+const RegexTester = () => {
+  const [pattern, setPattern] = useState('^[a-zA-Z0-9]+$');
+  const [testString, setTestString] = useState('');
+  const [isValid, setIsValid] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (!testString || !pattern) {
+      setIsValid(null);
+      return;
+    }
+    try {
+      const regex = new RegExp(pattern);
+      setIsValid(regex.test(testString));
+    } catch {
+      setIsValid(null);
+    }
+  }, [pattern, testString]);
+
+  return (
+    <div className="space-y-4">
+      <div className="space-y-2">
+        <label className="text-[10px] text-white/40 uppercase font-bold tracking-widest pl-1">Regex Pattern</label>
+        <input
+          type="text"
+          value={pattern}
+          onChange={(e) => setPattern(e.target.value)}
+          className="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-3 text-xs font-mono focus:outline-none focus:border-cyber-blue/50"
+        />
+      </div>
+      <div className="space-y-2">
+        <label className="text-[10px] text-white/40 uppercase font-bold tracking-widest pl-1">Test String</label>
+        <input
+          type="text"
+          value={testString}
+          onChange={(e) => setTestString(e.target.value)}
+          className="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-3 text-xs focus:outline-none focus:border-cyber-blue/50"
+        />
+      </div>
+      {isValid !== null && (
+        <div className={cn(
+          "p-3 rounded-xl border flex items-center gap-3 text-xs font-bold",
+          isValid ? "bg-cyber-green/10 border-cyber-green/20 text-cyber-green" : "bg-cyber-red/10 border-cyber-red/20 text-cyber-red"
+        )}>
+          {isValid ? <Check className="w-4 h-4" /> : <AlertOctagon className="w-4 h-4" />}
+          {isValid ? 'Pattern Matched' : 'Pattern Mismatch'}
+        </div>
+      )}
+    </div>
+  );
+};
+
+/**
+ * Data Privacy Calculator
+ */
+const DataPrivacyCalculator = () => {
+  const [dataPoints, setDataPoints] = useState(0);
+  const riskScore = Math.min(100, dataPoints * 12);
+
+  return (
+    <div className="space-y-4">
+      <div className="space-y-2">
+        <label className="text-[10px] text-white/40 uppercase font-bold tracking-widest pl-1">Data Types Exposed (e.g. Email, Name, DOB)</label>
+        <input
+          type="range"
+          min="0"
+          max="10"
+          value={dataPoints}
+          onChange={(e) => setDataPoints(parseInt(e.target.value))}
+          className="w-full h-2 bg-black/50 rounded-lg appearance-none cursor-pointer accent-cyber-purple"
+        />
+        <div className="text-right text-xs font-mono text-white/60">{dataPoints} types</div>
+      </div>
+      <div className={cn("p-4 rounded-xl border", riskScore > 60 ? "bg-cyber-red/10 border-cyber-red/20" : "bg-cyber-blue/10 border-cyber-blue/20")}>
+        <p className="text-[10px] uppercase font-bold text-white/40 mb-1">Privacy Risk Score</p>
+        <div className={cn("text-3xl font-black", riskScore > 60 ? "text-cyber-red" : "text-cyber-blue")}>
+          {riskScore}/100
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/**
+ * Network Traffic Anomaly Detector
+ */
+const TrafficDetector = () => {
+  const [packets, setPackets] = useState(0);
+  const [isAnomalous, setIsAnomalous] = useState(false);
+
+  const simulateTraffic = () => {
+    const val = Math.floor(Math.random() * 100);
+    setPackets(val);
+    setIsAnomalous(val > 80);
+  };
+
+  return (
+    <div className="space-y-4 text-center">
+      <div className="text-4xl font-mono font-bold text-white/80">{packets} <span className="text-sm text-white/20">pps</span></div>
+      <button 
+        onClick={simulateTraffic}
+        className="w-full py-3 bg-white/5 hover:bg-white/10 rounded-xl text-xs font-bold transition-all"
+      >
+        Simulate Network Scan
+      </button>
+      {isAnomalous && (
+        <div className="p-3 bg-cyber-yellow/10 border border-cyber-yellow/20 text-cyber-yellow text-[10px] font-bold rounded-xl animate-pulse">
+          ⚠️ TRAFFIC ANOMALY DETECTED
+        </div>
+      )}
+    </div>
+  );
+};
+
+/**
  * JWT Decoder - Static inspector
  */
 const JWTExplorer = () => {
@@ -371,47 +614,123 @@ const JWTExplorer = () => {
   );
 };
 
-// --- Main Security Suite Integration ---
+/**
+ * Security Header Scorer
+ */
+const HeaderScorer = () => {
+  const [headers, setHeaders] = useState('Strict-Transport-Security: max-age=31536000\nX-Frame-Options: SAMEORIGIN');
+  const [score, setScore] = useState(0);
 
-export const SecuritySuite: React.FC = () => {
+  useEffect(() => {
+    const criticalHeaders = ['Strict-Transport-Security', 'Content-Security-Policy', 'X-Frame-Options', 'X-Content-Type-Options'];
+    let count = 0;
+    criticalHeaders.forEach(h => {
+      if (headers.includes(h)) count += 25;
+    });
+    setScore(count);
+  }, [headers]);
+
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-      <ToolCard title="Hash Lab" icon={Cpu} colorClass="text-cyber-blue" points="+20 XP">
-        <HashLab />
-      </ToolCard>
-      
-      <ToolCard title="Cyber Decoder" icon={FileCode} colorClass="text-cyber-green" points="+15 XP">
-        <CyberDecoder />
-      </ToolCard>
-
-      <div className="md:col-span-2">
-        <ToolCard title="Port & Protocol Explorer" icon={Activity} colorClass="text-cyber-yellow" points="+10 XP">
-          <PortExplorer />
-        </ToolCard>
+    <div className="space-y-4">
+      <div className="space-y-2">
+        <label className="text-[10px] text-white/40 uppercase font-bold tracking-widest pl-1">Response Headers</label>
+        <textarea
+          value={headers}
+          onChange={(e) => setHeaders(e.target.value)}
+          className="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-3 text-[10px] font-mono h-24 resize-none"
+        />
       </div>
-
-      <div className="md:col-span-2">
-        <ToolCard title="JWT Payload Inspector" icon={Tickets} colorClass="text-cyber-red" points="+25 XP">
-          <JWTExplorer />
-        </ToolCard>
-      </div>
-
-      {/* Decorative Cyber Feed / Status */}
-      <div className="md:col-span-2 bg-black/40 rounded-3xl border border-white/5 p-6 border-dashed opacity-60">
-        <div className="flex items-center justify-between mb-4">
-          <h4 className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/30 flex items-center gap-2">
-            <Shield className="w-3 h-3" />
-            Active Platform Sentinel
-          </h4>
-          <span className="flex items-center gap-2 text-[10px] text-cyber-green font-bold">
-            <span className="w-1.5 h-1.5 rounded-full bg-cyber-green animate-pulse" />
-            STANDALONE_MODE_ACTIVE
-          </span>
-        </div>
-        <p className="text-[10px] text-white/40 leading-relaxed italic">
-          These tools operate locally within your browser context. No data leaves your machine during analysis or calculation. Encryption and validation are performed using native browser-side crypto sub-systems.
-        </p>
+      <div className="flex items-end justify-between">
+        <span className="text-[10px] text-white/40 uppercase font-bold">Security Score</span>
+        <span className={cn("text-xl font-black", score > 75 ? "text-cyber-green" : score > 50 ? "text-cyber-yellow" : "text-cyber-red")}>
+          {score}/100
+        </span>
       </div>
     </div>
   );
+};
+
+// No extra imports here.
+
+import { BrowserFingerprint } from './tools/BrowserFingerprint';
+import { FileIntegrityVerifier } from './tools/FileIntegrityVerifier';
+import { HomographDetector } from './tools/HomographDetector';
+import { EmailHeaderAnalyzer } from './tools/EmailHeaderAnalyzer';
+import { AESPlayground, SocialEngineeringAnalyzer, VulnerableCodeScanner, TOTPSimulator, SteganographyTool, PasswordPatternVisualizer } from './tools/AdvancedTools';
+import { PasswordAnalyzer } from './tools/PasswordAnalyzer';
+import { PhishingDetector } from './tools/PhishingDetector';
+import { ExifAnalyzer } from './ExifAnalyzer';
+
+// ... HashLab, CyberDecoder, etc are still defined in this file (lines 79 onwards) ...
+
+const MASTER_TOOLS = [
+  { id: 'password', name: 'Password Analyzer', desc: 'Evaluates password entropy.', usage: 'Enter password to analyze strength, estimated crack time, and suggestions.', icon: Lock, color: 'text-cyber-blue', component: <PasswordAnalyzer /> },
+  { id: 'phishing', name: 'Phishing Detector', desc: 'Identifies suspicious URLs.', usage: 'Paste links or email body text to scan for phishing triggers.', icon: AlertOctagon, color: 'text-cyber-yellow', component: <PhishingDetector /> },
+  { id: 'exif', name: 'Metadata Analyzer', desc: 'Extracts EXIF forensic data.', usage: 'Upload image files to view hidden metadata and GPS coordinates.', icon: ApertureIcon, color: 'text-cyber-green', component: <ExifAnalyzer /> },
+  { id: 'fingerprint', name: 'Browser Fingerprint', desc: 'Analyzes browser signals.', usage: 'Generates a canvas-based fingerprint ID for privacy risk assessment.', icon: Shield, color: 'text-cyber-purple', component: <BrowserFingerprint /> },
+  { id: 'emailheader', name: 'Email Header Analyzer', desc: 'Parses email routing data.', usage: 'Checks SPF, DKIM, DMARC for authenticity.', icon: Server, color: 'text-cyber-yellow', component: <EmailHeaderAnalyzer /> },
+  { id: 'aes', name: 'AES Playground', desc: 'AES-256-GCM encryption.', usage: 'Provides local data encryption with PBKDF2 key derivation.', icon: Lock, color: 'text-cyber-blue', component: <AESPlayground /> },
+  { id: 'codescan', name: 'Vulnerable Code Scan', desc: 'Identifies common security flaws.', usage: 'Detects dangerous functions (eval, innerHTML) in source code.', icon: Code, color: 'text-cyber-purple', component: <VulnerableCodeScanner /> },
+  { id: 'totp', name: 'TOTP 2FA Sim', desc: 'Shows time-based 2FA tokens.', usage: 'Generates live tokens to illustrate 2FA mechanisms.', icon: Shield, color: 'text-cyber-green', component: <TOTPSimulator /> },
+  { id: 'stego', name: 'Steganography Tool', desc: 'Hides secrets in images.', usage: 'Embeds data into pixels for covert storage.', icon: Zap, color: 'text-cyber-yellow', component: <SteganographyTool /> },
+  { id: 'passpattern', name: 'Pattern Visualizer', desc: 'Maps typing paths.', usage: 'Visualizes keyboard-walk patterns for password security.', icon: Lock, color: 'text-cyber-blue', component: <PasswordPatternVisualizer /> },
+  // Adding the existing ones too to keep them
+  { id: 'hashlab', name: 'Hash Lab', desc: 'Secure hash generation.', usage: 'Creates SHA-256/512 hashes.', icon: Cpu, color: 'text-cyber-blue', component: <HashLab /> },
+  { id: 'decoder', name: 'Cyber Decoder', desc: 'Encoding/decoding utility', usage: 'Translates Base64, Hex, and URL formats.', icon: FileCode, color: 'text-cyber-green', component: <CyberDecoder /> },
+  { id: 'port', name: 'Port Explorer', desc: 'Common port risks.', usage: 'Search and inspect network port vulnerabilities.', icon: PlugZap, color: 'text-cyber-yellow', component: <PortExplorer /> },
+  { id: 'jwt', name: 'JWT Inspector', desc: 'JWT structure decoder.', usage: 'Inspect header and payload of a JSON Web Token.', icon: Tickets, color: 'text-cyber-red', component: <JWTExplorer /> },
+  { id: 'regex', name: 'Regex Tester', desc: 'Regex pattern validator.', usage: 'Tests strings against regular expression patterns.', icon: Terminal, color: 'text-cyber-green', component: <RegexTester /> },
+  { id: 'header', name: 'Header Scorer', desc: 'Security header audit.', usage: 'Analyzes HTTP security headers.', icon: Server, color: 'text-cyber-yellow', component: <HeaderScorer /> },
+  { id: 'traffic', name: 'Traffic Anomaly', desc: 'Detects traffic spikes.', usage: 'Simulates network flow monitoring.', icon: Radar, color: 'text-cyber-red', component: <TrafficDetector /> },
+];
+
+export const SecuritySuite: React.FC = () => {
+    const [search, setSearch] = useState('');
+    const [expandedToolId, setExpandedToolId] = useState<string | null>(null);
+
+    const filtered = MASTER_TOOLS.filter(t => t.name.toLowerCase().includes(search.toLowerCase()));
+
+    const handleToggle = (id: string) => {
+        setExpandedToolId(prev => prev === id ? null : id);
+    };
+
+    return (
+        <div className="space-y-6">
+            <div className="relative">
+                <input 
+                    value={search} 
+                    onChange={e => {
+                        setSearch(e.target.value);
+                        setExpandedToolId(null);
+                    }}
+                    placeholder="Search security protocols & tools..."
+                    className="w-full bg-cyber-card/60 backdrop-blur-md border border-white/10 rounded-2xl p-4 pl-12 text-sm focus:outline-none focus:border-cyber-blue/40"
+                />
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40" />
+            </div>
+            
+            <div className="flex flex-col gap-4">
+               {filtered.length > 0 ? (
+                 filtered.map(tool => (
+                   <CollapsibleToolCard 
+                     key={tool.id} 
+                     title={tool.name} 
+                     description={tool.desc} 
+                     usage={tool.usage} 
+                     icon={tool.icon} 
+                     colorClass={tool.color}
+                     isExpanded={expandedToolId === tool.id}
+                     onToggle={() => handleToggle(tool.id)}
+                   >
+                     {tool.component}
+                   </CollapsibleToolCard>
+                 ))
+               ) : (
+                 <div className="text-center text-white/40 italic py-10 bg-cyber-card/25 rounded-3xl border border-white/5">
+                   No tools found matching "{search}"
+                 </div>
+               )}
+            </div>
+        </div>
+    );
 };
