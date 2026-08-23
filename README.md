@@ -1,114 +1,84 @@
-# 🌌 Credentia — Advanced Cybersecurity Academy & Security Protocols
+# ForgeAI
 
-<p align="center">
-  <img src="./public/logo.png" alt="Credentia Logo" width="120" height="120" onerror="this.src='https://raw.githubusercontent.com/lucide-icons/lucide/main/icons/shield-alert.svg'" />
-</p>
+ForgeAI is a focused personal AI generation workspace for image creation. It is designed around a **bring-your-own-key** workflow: choose a provider and model, compose a prompt, generate through a server-side adapter, and keep a private history of the resulting frames.
 
-<p align="center">
-  <strong>An Elite Cybersecurity Learning Sandbox and Defensive Protocol Suite.</strong>
-</p>
+The current implementation ships with NVIDIA NIM as the first provider. The UI and model registry are provider-agnostic so additional adapters can be added without scattering provider-specific logic across the product.
 
-<p align="center">
-  <a href="#-features">Features</a> •
-  <a href="#-system-architecture">Architecture</a> •
-  <a href="#-installation--setup">Setup</a> •
-  <a href="#-security-protocols">Security Suite</a> •
-  <a href="#-mit-license">License</a>
-</p>
+## Product surface
 
----
+The workspace includes a dark-first generation composer, prompt character counting, optional enhancement, reference-image upload, model-aware controls, honest indeterminate generation states, full-size result viewing, download and prompt reuse actions, local generation history, a searchable archive, model capability cards, API-key management, email/password authentication through Supabase, and usage-limit disclosure.
 
-## 💎 Introduction
+The initial NVIDIA catalog is based on the current official API references for **FLUX.2 klein 4B**, **FLUX.1 dev**, and **FLUX.1 Kontext dev**.[^1] [^2] [^3] Unsupported providers are intentionally shown as future adapter targets rather than implemented through guessed endpoints.
 
-**Credentia** is a comprehensive, production-ready full-stack cybersecurity hub designed for professionals, researchers, and security students. It features an interactive learning academy, dynamic security evaluation protocols, cryptographic suites, and passive analysis tools, framed by a high-fidelity **Cosmic Slate Theme** with fluid layout animations.
+## Architecture
 
-Our goal is to build secure, robust applications utilizing modern development patterns. This repository enforces safe code practices, secure session handling, strict input sanitation, and zero-trust principles.
+```text
+React + Vite UI
+      |
+      |  /api/generate and /api/providers/nvidia/*
+      v
+Express server routes
+      |
+      v
+NVIDIA adapter payload builder
+      |
+      v
+NVIDIA NIM hosted inference
+```
 
----
+The browser does not call NVIDIA directly. Provider requests are made in `server.ts`, and raw provider errors are mapped to human-readable messages. The current local credential vault encrypts saved keys in server memory using AES-256-GCM. For production persistence, connect the route to an encrypted Supabase-backed secret store and provide a strong `FORGEAI_CREDENTIAL_SECRET` value through the deployment secret manager. The included `supabase_forgeai.sql` provides user-owned tables and RLS policies for that persistence layer.
 
-## 🚀 Features
+## Local setup
 
-### 1. 🎓 Dynamic Academy & Learning Progress
-- **The Complete Cybersecurity Bootcamp**: From zero knowledge to advanced defensive capabilities.
-- **Progress Tracking Engine**: Track your active course progression, module mastery, and quiz performance (resets to actual completed modules count out of 4 modules).
-- **Interactive Quizzes**: Reinforce learnings through scenario-based defensive security questionnaires.
-- **Account-Enforced Enrollment**: Strict session controls ensuring guest accounts must sign up or sign in before starting any learning pathways to preserve progress securely.
+Install dependencies and create a local environment file:
 
-### 2. 🛡️ Advanced Defensive Utility Suite
-- **Interactive Security Suite**: A modular, collapsible grid of defensive utilities:
-  - **Password Strength Analyzer**: Complete character analysis with real-time feedback and clear-state confirmation safety protocols.
-  - **Phishing Detector**: Scans potential phishing vectors and email patterns with robust local heuristics.
-  - **File Integrity Verifier**: Client-side secure hash generators supporting standard `SHA-256` and `SHA-512` protocols.
-  - **Base64/Hex/URL Transcoder**: Low-overhead utility to cleanly encode or decode string matrices securely.
-
-### 3. ☄️ Immersive Visual Environment
-- **ThreeJS Cybernetic Starfield Background**: Beautiful high-performance procedural space starfield background with smooth interactive warping controls on page entries.
-- **Seamless Universal Overlay Menu**: Premium minimalist "More" drawer with fluid, high-performance entrance transitions via Framer Motion.
-
----
-
-## 🛠️ System Architecture
-
-- **Frontend**: React (18+), Vite, Tailwind CSS (v4), Framer Motion (`motion/react`)
-- **Backend / API**: Express.js server bundled with `esbuild` for enterprise compatibility (CommonJS target output bypassing Node’s ES Module paths checks)
-- **Database / Auth**: Supabase (PostgreSQL with RLS) for persistent user profiles, module completion logs, and security tracking data.
-- **Build / Target Platforms**: Fully optimized and configured for Vercel Serverless and standard Cloud Run container engines.
-
----
-
-## 📦 Installation & Setup
-
-### Prerequisites
-- [Node.js](https://nodejs.org/) (v18 or higher)
-- [npm](https://www.npmjs.com/) (v9 or higher)
-
-### Step 1: Clone the Project & Install Dependencies
 ```bash
 npm install
-```
-
-### Step 2: Configure Environment Variables
-Copy `.env.example` to create your local variables:
-```bash
 cp .env.example .env
 ```
-Populate `.env` with your Supabase credentials:
+
+Configure the server-side NVIDIA key if you want a deployment-level default, or leave it blank and enter a user-owned key through the API Keys screen:
+
 ```env
-VITE_SUPABASE_URL=your_supabase_project_url
-VITE_SUPABASE_ANON_KEY=your_supabase_anon_public_key
+NVIDIA_API_KEY=
+FORGEAI_CREDENTIAL_SECRET=replace-with-a-long-random-secret
+VITE_SUPABASE_URL=
+VITE_SUPABASE_ANON_KEY=
 ```
 
-### Step 3: Run Development Server
+Start the development server:
+
 ```bash
 npm run dev
 ```
-The server will start on port `3000` (externally routed).
 
-### Step 4: Production Compilation
+The application runs at `http://localhost:3000`. Build and type-check before deployment:
+
 ```bash
 npm run build
+npm run lint
 ```
 
----
+If Supabase is enabled, run `supabase_forgeai.sql` in the Supabase SQL editor. The policies scope credentials, generations, saved prompts, and settings to `auth.uid() = user_id`.
 
-## 🔒 Security Protocols
+## NVIDIA behavior
 
-We implement a zero-trust architecture across all components:
-1. **No Sensitive Browser Storage**: User metadata and course progress are bound directly to active JWT structures verified server-side.
-2. **Autofill Hardening**: Explicit custom CSS overrides guarding against browser auto-fill leaks (with proper dark-mode theme preservation).
-3. **Collapsible Safe Sandboxes**: Each tool resides in isolated state closures. Clear action prompts are dual-verified (`Clear? [Yes] [No]`) to avoid unintended leakage or accidental deletion of scanned telemetry.
-4. **Row-Level Security**: Standard PostgreSQL tables enforce `auth.uid() = user_id` rules preventing lateral cross-tenant operations.
+The adapter uses the official endpoint family at `https://ai.api.nvidia.com/v1/genai/black-forest-labs/`. FLUX.2 klein 4B uses the verified `prompt`, `width`, `height`, `seed`, and `steps` fields, with reference editing sent only when a reference image is attached. FLUX.1 dev uses its documented `base` mode, `cfg_scale`, and step range. FLUX.1 Kontext dev uses the documented image-editing request shape and aspect-ratio values.
 
----
+The **Test connection** action sends a minimal verification generation request through the same server-side provider path. Depending on the NVIDIA account and plan, provider usage or rate limits may apply. ForgeAI makes no claim that provider usage is unlimited or permanently free.
 
-## 🤝 Code of Conduct
+## Security notes
 
-Participation in this project is subject to the provisions of the [Code of Conduct](CODE_OF_CONDUCT.md). We expect all contributors to adhere to polite, constructive, and highly professional community interactions.
+Real secrets must never be committed to Git, placed in `VITE_` variables, returned in full to the client, written into generation history, or logged. The frontend only receives connection state and masked-key messaging. The checked-in `.env.example` contains no real secret.
 
----
+The included in-memory vault is appropriate for local development and a single running process. A production deployment should replace it with encrypted, user-scoped Supabase persistence, use a strong secret manager-backed encryption key, and pass authenticated user context into the server routes.
 
-## 📄 MIT License
+## Verification
 
-This project is open-source software licensed under the terms of the [MIT License](LICENSE.md).
+The current repository passes the production Vite build and TypeScript check. Browser verification covered the generation workspace, prompt validation without credentials, API-key management view, model registry and filters, settings disclosure, and mobile-ready layout rules. No placeholder image is presented as a generated result; the output canvas remains empty until NVIDIA returns a real artifact.
 
-*Copyright © 2026 CREDENTIA Team. All rights reserved.*
+## References
+
+[^1]: [NVIDIA API Reference — FLUX.2 klein 4B Infer](https://docs.api.nvidia.com/nim/reference/black-forest-labs-flux_2-klein-4b-infer)
+[^2]: [NVIDIA API Reference — FLUX.1 dev Infer](https://docs.api.nvidia.com/nim/reference/black-forest-labs-flux_1-dev-infer)
+[^3]: [NVIDIA API Reference — FLUX.1 Kontext dev Infer](https://docs.api.nvidia.com/nim/reference/black-forest-labs-flux_1-kontext-dev-infer)
