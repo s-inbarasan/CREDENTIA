@@ -197,6 +197,7 @@ export default function App() {
   const downloadRecord = (record: GenerationRecord) => { const link = document.createElement('a'); link.href = record.image; link.download = `forgeai-${record.id}.jpg`; link.click(); };
 
   async function generate() {
+    if (!session) { setShowAuth(true); toast.error('Sign in to generate', { description: 'Your generation history belongs to your private account.' }); return; }
     if (!prompt.trim()) { toast.error('Describe what you want to create first.'); return; }
     setQueueState('preparing'); setResult(null);
     let promptToSend = prompt.trim();
