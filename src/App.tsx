@@ -1,269 +1,91 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { AnimatePresence, motion } from 'motion/react';
-import { toast, Toaster } from 'sonner';
-import {
-  ArrowDownToLine,
-  ArrowLeft,
-  ArrowUpRight,
-  Check,
-  CheckCircle2,
-  ChevronDown,
-  CircleHelp,
-  Clock3,
-  Code2,
-  Copy,
-  Download,
-  FileImage,
-  FlaskConical,
-  Grid2X2,
-  ImagePlus,
-  Images,
-  KeyRound,
-  Layers3,
-  LoaderCircle,
-  Menu,
-  Monitor,
-  Moon,
-  MoreHorizontal,
-  Pencil,
-  Play,
-  Plus,
-  RefreshCw,
-  Search,
-  Settings2,
-  ShieldCheck,
-  Sparkles,
-  Trash2,
-  UploadCloud,
-  UserRound,
-  WandSparkles,
-  X,
-  Zap,
-} from 'lucide-react';
-import { supabase } from './supabase';
-import {
-  formatTimeAgo,
-  getModel,
-  MODEL_REGISTRY,
-  PROVIDERS,
-  type GenerationRecord,
-  type GenerationSettings,
-} from './lib/forgeai';
+import { useEffect, useMemo, useState } from 'react';
+import { Activity, AlertTriangle, Bot, Check, ChevronRight, CircleHelp, Cpu, FileText, Folder, Globe2, Keyboard, KeyRound, LayoutDashboard, Lock, Monitor, MousePointer2, Play, RefreshCw, Search, Server, Settings2, ShieldCheck, Square, Terminal, Timer, Trash2, X, Zap } from 'lucide-react';
+import type { ActionEvent, PermissionRequest, ProviderStatus, TarsSettings, TarsTask } from '../electron/agent/contracts';
 
-const STORAGE_KEY = 'forgeai-history-v1';
-const SESSION_KEY = 'forgeai-session-id';
-const PROMPT_KEY = 'forgeai-prompts-v1';
+type View = 'command' | 'tasks' | 'activity' | 'providers' | 'settings' | 'health';
+const nav: Array<{ id: View; label: string; icon: React.ReactNode }> = [
+  { id: 'command', label: 'Command center', icon: <LayoutDashboard size={16} /> },
+  { id: 'tasks', label: 'Tasks', icon: <Check size={16} /> },
+  { id: 'activity', label: 'Activity log', icon: <Activity size={16} /> },
+  { id: 'providers', label: 'AI providers', icon: <KeyRound size={16} /> },
+  { id: 'health', label: 'System check', icon: <ShieldCheck size={16} /> },
+  { id: 'settings', label: 'Settings', icon: <Settings2 size={16} /> },
+];
 
-type View = 'landing' | 'generate' | 'history' | 'models' | 'keys' | 'settings';
-type QueueState = 'idle' | 'preparing' | 'sending' | 'generating' | 'processing' | 'completed' | 'failed';
-
-type AuthState = {
-  email: string;
-  password: string;
-  mode: 'sign-in' | 'sign-up';
-};
-
-const starterPrompt = 'Create a cinematic realistic portrait of a young woman standing in a futuristic Tokyo street at night, realistic skin texture, natural lighting, shallow depth of field.';
-
-const initialSettings: GenerationSettings = {
-  provider: 'nvidia',
-  model: 'black-forest-labs/flux.2-klein-4b',
-  ratio: '1:1',
-  resolution: '1024 × 1024',
-  images: 1,
-  seed: 0,
-  steps: 4,
-  cfgScale: 0,
-};
-
-function cx(...classes: Array<string | false | null | undefined>) {
-  return classes.filter(Boolean).join(' ');
-}
-
-function getSessionId() {
-  const existing = localStorage.getItem(SESSION_KEY);
-  if (existing) return existing;
-  const next = crypto.randomUUID();
-  localStorage.setItem(SESSION_KEY, next);
-  return next;
-}
-
-function AppLogo({ compact = false, onClick }: { compact?: boolean; onClick?: () => void }) {
-  return (
-    <button className="brand-lockup" onClick={onClick} aria-label="Open ForgeAI overview">
-      <div className={cx('flex items-center gap-3', compact && 'justify-center')}>
-        <div className="logo-orbit"><span>F</span></div>
-        {!compact && <div><div className="brand-name">Forge<span>AI</span></div><div className="brand-caption">generation workspace</div></div>}
-      </div>
-    </button>
-  );
-}
-
-function IconButton({ label, onClick, children, active = false, className = '' }: { label: string; onClick?: () => void; children: React.ReactNode; active?: boolean; className?: string }) {
-  return <button aria-label={label} title={label} onClick={onClick} className={cx('icon-button', active && 'icon-button-active', className)}>{children}</button>;
-}
-
-function SelectField({ label, value, options, onChange }: { label: string; value: string; options: string[]; onChange: (value: string) => void }) {
-  return <label className="control-field"><span>{label}</span><div className="select-wrap"><select value={value} onChange={(event) => onChange(event.target.value)}>{options.map((option) => <option key={option}>{option}</option>)}</select><ChevronDown size={14} /></div></label>;
-}
-
-function NavItem({ icon, label, active, onClick, badge }: { icon: React.ReactNode; label: string; active: boolean; onClick: () => void; badge?: string }) {
-  return <button className={cx('nav-item', active && 'nav-item-active')} onClick={onClick}><span className="nav-icon">{icon}</span><span>{label}</span>{badge && <span className="nav-badge">{badge}</span>}</button>;
-}
-
-function EmptyPreview() {
-  return <div className="empty-preview">
-    <div className="preview-grid" />
-    <div className="preview-center">
-      <div className="preview-mark"><Sparkles size={20} /></div>
-      <div className="preview-title">Your next image starts here</div>
-      <div className="preview-copy">Describe a scene, mood, or visual direction.<br />ForgeAI will return the finished frame here.</div>
-      <div className="preview-hint"><kbd>⌘</kbd><kbd>↵</kbd><span>to generate</span></div>
-    </div>
-    <div className="preview-corner preview-corner-tl" /><div className="preview-corner preview-corner-tr" /><div className="preview-corner preview-corner-bl" /><div className="preview-corner preview-corner-br" />
-  </div>;
-}
-
-function GenerationCard({ item, onOpen, onDelete, onDownload, onRegenerate }: { item: GenerationRecord; onOpen: () => void; onDelete: () => void; onDownload: () => void; onRegenerate: () => void }) {
-  return <motion.article layout initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="history-card">
-    <button className="history-image-button" onClick={onOpen}><img src={item.image} alt={item.prompt} loading="lazy" /><span className="history-open"><ArrowUpRight size={17} /></span></button>
-    <div className="history-card-body"><div className="history-card-top"><span className="model-chip">{getModel(item.model).name.replace('FLUX.', 'FLUX')}</span><span className="history-date">{formatTimeAgo(item.createdAt)}</span></div><p>{item.prompt}</p><div className="history-meta"><span>{item.resolution}</span><span className="dot" /><span>NVIDIA</span><span className="history-actions"><IconButton label="Download" onClick={onDownload}><Download size={14} /></IconButton><IconButton label="Regenerate" onClick={onRegenerate}><RefreshCw size={14} /></IconButton><IconButton label="Delete" onClick={onDelete}><Trash2 size={14} /></IconButton></span></div></div>
-  </motion.article>;
-}
-
-function AuthModal({ auth, setAuth, onClose, onSuccess }: { auth: AuthState; setAuth: (value: AuthState) => void; onClose: () => void; onSuccess: () => void }) {
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
-  const submit = async (event: React.FormEvent) => {
-    event.preventDefault(); setBusy(true); setError('');
-    const result = auth.mode === 'sign-in' ? await supabase.auth.signInWithPassword({ email: auth.email, password: auth.password }) : await supabase.auth.signUp({ email: auth.email, password: auth.password });
-    if (result.error) setError(result.error.message.includes('placeholder') ? 'Supabase is not configured for this deployment yet.' : result.error.message);
-    else { toast.success(auth.mode === 'sign-in' ? 'Welcome back' : 'Account created'); onSuccess(); onClose(); }
-    setBusy(false);
-  };
-  return <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}><motion.div initial={{ opacity: 0, y: 18, scale: .98 }} animate={{ opacity: 1, y: 0, scale: 1 }} className="auth-modal"><button className="modal-close" onClick={onClose}><X size={18} /></button><div className="modal-kicker"><ShieldCheck size={15} /> SECURE WORKSPACE ACCESS</div><h2>{auth.mode === 'sign-in' ? 'Sign in to ForgeAI' : 'Create your ForgeAI account'}</h2><p className="muted">Your generation history and provider settings stay private to your account.</p><form onSubmit={submit} className="auth-form"><label>Email<input type="email" autoFocus required value={auth.email} onChange={(event) => setAuth({ ...auth, email: event.target.value })} placeholder="you@example.com" /></label><label>Password<input type="password" minLength={6} required value={auth.password} onChange={(event) => setAuth({ ...auth, password: event.target.value })} placeholder="At least 6 characters" /></label>{error && <div className="error-box">{error}</div>}<button className="primary-button full-width" disabled={busy}>{busy ? <><LoaderCircle size={17} className="spin" /> Working…</> : auth.mode === 'sign-in' ? 'Sign in' : 'Create account'}</button></form><button className="text-button" onClick={() => setAuth({ ...auth, mode: auth.mode === 'sign-in' ? 'sign-up' : 'sign-in' })}>{auth.mode === 'sign-in' ? 'Need an account? Create one' : 'Already have an account? Sign in'}</button></motion.div></div>;
-}
+function cx(...classes: Array<string | false | undefined>) { return classes.filter(Boolean).join(' '); }
+function time(value: string) { return new Date(value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }); }
+function statusColor(status: TarsTask['status']) { return ({ COMPLETED: 'green', FAILED: 'red', CANCELLED: 'muted', WAITING_FOR_PERMISSION: 'amber', RUNNING: 'lime', PLANNING: 'lime', QUEUED: 'muted', PAUSED: 'amber' } as Record<string, string>)[status] || 'muted'; }
 
 export default function App() {
-  const [view, setView] = useState<View>('generate');
-  const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const [prompt, setPrompt] = useState('');
-  const [enhance, setEnhance] = useState(false);
-  const [reference, setReference] = useState<string | undefined>();
-  const [settings, setSettings] = useState(initialSettings);
-  const [queueState, setQueueState] = useState<QueueState>('idle');
-  const [result, setResult] = useState<GenerationRecord | null>(null);
-  const [history, setHistory] = useState<GenerationRecord[]>([]);
-  const [selectedModel, setSelectedModel] = useState('all');
-  const [modelFilter, setModelFilter] = useState<'All' | 'Image' | 'Text' | 'Vision' | 'Video'>('All');
-  const [search, setSearch] = useState('');
-  const [showAuth, setShowAuth] = useState(false);
-  const [auth, setAuth] = useState<AuthState>({ email: '', password: '', mode: 'sign-in' });
-  const [session, setSession] = useState<unknown>(null);
-  const [apiKey, setApiKey] = useState('');
-  const [keyStatus, setKeyStatus] = useState<'unknown' | 'connected' | 'missing' | 'saving' | 'testing'>('unknown');
-  const [keyMessage, setKeyMessage] = useState('');
-  const [showKey, setShowKey] = useState(false);
-  const [showAdvanced, setShowAdvanced] = useState(false);
-  const [promptHistory, setPromptHistory] = useState<string[]>([]);
-  const [selectedRecord, setSelectedRecord] = useState<GenerationRecord | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const model = getModel(settings.model);
+  const [view, setView] = useState<View>('command');
+  const [objective, setObjective] = useState('');
+  const [tasks, setTasks] = useState<TarsTask[]>([]);
+  const [events, setEvents] = useState<ActionEvent[]>([]);
+  const [permissions, setPermissions] = useState<PermissionRequest[]>([]);
+  const [providers, setProviders] = useState<ProviderStatus[]>([]);
+  const [settings, setSettings] = useState<TarsSettings | null>(null);
+  const [screen, setScreen] = useState<any>(null);
+  const [stopped, setStopped] = useState(false);
+  const [health, setHealth] = useState<any>(null);
+  const [selectedTask, setSelectedTask] = useState<string>();
+  const [busy, setBusy] = useState(false);
+  const desktopAvailable = typeof window !== 'undefined' && Boolean(window.tars);
+
+  const activeTask = useMemo(() => tasks.find((task) => task.id === selectedTask) || tasks.find((task) => ['RUNNING', 'PLANNING', 'WAITING_FOR_PERMISSION'].includes(task.status)) || tasks[0], [tasks, selectedTask]);
+  const activeProvider = providers.find((provider) => provider.id === settings?.primaryProviderId);
 
   useEffect(() => {
-    try { setHistory(JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]')); setPromptHistory(JSON.parse(localStorage.getItem(PROMPT_KEY) || '[]')); } catch { setHistory([]); }
-    supabase.auth.getSession().then(({ data }) => setSession(data.session));
-    const { data } = supabase.auth.onAuthStateChange((_event, nextSession) => setSession(nextSession));
-    return () => data.subscription.unsubscribe();
-  }, []);
+    if (!desktopAvailable) return;
+    void window.tars.snapshot().then((snapshot) => { setTasks(snapshot.tasks); setEvents(snapshot.events); setPermissions(snapshot.pendingPermissions); setProviders(snapshot.providerStatuses); setSettings(snapshot.settings); setStopped(snapshot.stopActive); });
+    const offEvent = window.tars.onEvent((event) => setEvents((current) => [...current, event].slice(-300)));
+    const offTask = window.tars.onTask((task) => setTasks((current) => [task, ...current.filter((item) => item.id !== task.id)].sort((a, b) => b.createdAt.localeCompare(a.createdAt))));
+    const offPermission = window.tars.onPermission((request) => setPermissions((current) => [...current.filter((item) => item.id !== request.id), request]));
+    const offStop = window.tars.onStopState(setStopped);
+    return () => { offEvent(); offTask(); offPermission(); offStop(); };
+  }, [desktopAvailable]);
 
-  useEffect(() => {
-    const handler = (event: KeyboardEvent) => { if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') { event.preventDefault(); if (prompt.trim() && queueState === 'idle') void generate(); } if (event.key === 'Escape') setSelectedRecord(null); };
-    window.addEventListener('keydown', handler); return () => window.removeEventListener('keydown', handler);
-  });
+  useEffect(() => { if (!desktopAvailable) return; const timer = window.setInterval(() => { if (!stopped) void window.tars.screen().then(setScreen); }, 3500); void window.tars.screen().then(setScreen); return () => window.clearInterval(timer); }, [desktopAvailable, stopped]);
 
-  useEffect(() => {
-    const loadKeyStatus = async () => { try { const response = await fetch(`/api/providers/nvidia/credentials?sessionId=${getSessionId()}`); const data = await response.json(); setKeyStatus(data.connected ? 'connected' : 'missing'); } catch { setKeyStatus('missing'); } };
-    if (view === 'keys' || view === 'generate') void loadKeyStatus();
-  }, [view]);
+  async function startTask() { if (!objective.trim() || !desktopAvailable || busy) return; setBusy(true); try { const task = await window.tars.createTask(objective.trim()); setObjective(''); setSelectedTask(task.id); setView('command'); } finally { setBusy(false); } }
+  async function refreshHealth() { if (!desktopAvailable) return; setHealth(await window.tars.health()); }
+  async function updateSetting(patch: Partial<TarsSettings>) { if (!desktopAvailable) return; const next = await window.tars.settings(patch); setSettings(next); }
+  async function respond(request: PermissionRequest, decision: 'allow-once' | 'allow-task' | 'deny') { if (!desktopAvailable) return; await window.tars.permissionDecision(request.id, decision); setPermissions((current) => current.filter((item) => item.id !== request.id)); }
 
-  const updateSettings = (next: Partial<GenerationSettings>) => setSettings((current) => ({ ...current, ...next }));
-  const openView = (next: View) => { setView(next); setMobileNavOpen(false); };
-  const addPromptToHistory = (value: string) => { const next = [value, ...promptHistory.filter((item) => item !== value)].slice(0, 12); setPromptHistory(next); localStorage.setItem(PROMPT_KEY, JSON.stringify(next)); };
-
-  const handleFile = (file?: File) => { if (!file) return; if (!file.type.startsWith('image/')) { toast.error('Choose an image file'); return; } const reader = new FileReader(); reader.onload = () => setReference(String(reader.result)); reader.readAsDataURL(file); };
-
-  const saveRecord = (record: GenerationRecord) => { const next = [record, ...history].slice(0, 24); setHistory(next); localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); };
-  const downloadRecord = (record: GenerationRecord) => { const link = document.createElement('a'); link.href = record.image; link.download = `forgeai-${record.id}.jpg`; link.click(); };
-
-  async function generate() {
-    if (!session) { setShowAuth(true); toast.error('Sign in to generate', { description: 'Your generation history belongs to your private account.' }); return; }
-    if (!prompt.trim()) { toast.error('Describe what you want to create first.'); return; }
-    setQueueState('preparing'); setResult(null);
-    let promptToSend = prompt.trim();
-    if (enhance) promptToSend = `${promptToSend}, editorial art direction, clear focal subject, considered lighting, high detail`;
-    const started = Date.now();
-    try {
-      await new Promise((resolve) => setTimeout(resolve, 260)); setQueueState('sending');
-      const response = await fetch('/api/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId: getSessionId(), prompt: promptToSend, settings, referenceImage: reference }) });
-      setQueueState('generating'); const data = await response.json();
-      if (!response.ok) throw new Error(data.message || 'Unable to reach the generation service.');
-      setQueueState('processing');
-      const record: GenerationRecord = { id: crypto.randomUUID().slice(0, 8), image: `data:image/jpeg;base64,${data.image}`, prompt: prompt.trim(), provider: 'nvidia', model: settings.model, resolution: settings.resolution, ratio: settings.ratio, seed: data.seed ?? settings.seed, createdAt: new Date().toISOString(), durationMs: Date.now() - started };
-      saveRecord(record); addPromptToHistory(prompt.trim()); setResult(record); setQueueState('completed'); toast.success('Image generated', { description: `${getModel(settings.model).name} · ${record.resolution}` });
-    } catch (error) { setQueueState('failed'); toast.error(error instanceof Error ? error.message : 'Unable to reach the generation service.'); }
-  }
-
-  async function saveKey() {
-    setKeyStatus('saving'); setKeyMessage('');
-    try { const response = await fetch('/api/providers/nvidia/credentials', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId: getSessionId(), apiKey }) }); const data = await response.json(); if (!response.ok) throw new Error(data.message); setKeyStatus('connected'); setApiKey(''); setKeyMessage(data.message); toast.success('NVIDIA key saved securely'); } catch (error) { setKeyStatus('missing'); setKeyMessage(error instanceof Error ? error.message : 'Could not save this key.'); }
-  }
-  async function testKey() { setKeyStatus('testing'); setKeyMessage('Sending a minimal verification request to NVIDIA…'); try { const response = await fetch('/api/providers/nvidia/test', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId: getSessionId(), apiKey: apiKey || undefined }) }); const data = await response.json(); if (!response.ok) throw new Error(data.message); setKeyStatus('connected'); setKeyMessage(data.message); toast.success('Connection verified'); } catch (error) { setKeyStatus('missing'); setKeyMessage(error instanceof Error ? error.message : 'Connection test failed.'); } }
-  async function removeKey() { await fetch(`/api/providers/nvidia/credentials?sessionId=${getSessionId()}`, { method: 'DELETE' }); setKeyStatus('missing'); setKeyMessage('The stored key was removed from this workspace.'); toast.success('NVIDIA key removed'); }
-
-  const filteredHistory = history.filter((item) => !search || item.prompt.toLowerCase().includes(search.toLowerCase()) || getModel(item.model).name.toLowerCase().includes(search.toLowerCase()));
-  const filteredModels = MODEL_REGISTRY.filter((item) => (selectedModel === 'all' || item.provider === selectedModel) && (modelFilter === 'All' || item.category === modelFilter || item.capabilities.includes(modelFilter.toLowerCase() as never)));
-  const isGenerating = queueState !== 'idle' && queueState !== 'completed' && queueState !== 'failed';
-  const queueLabel: Record<QueueState, string> = { idle: 'Ready to generate', preparing: 'Preparing', sending: 'Sending request', generating: 'Generating', processing: 'Processing', completed: 'Completed', failed: 'Generation failed' };
-
-  const renderLanding = () => <div className="landing-page"><div className="landing-copy"><div className="eyebrow-row"><span className="eyebrow">FORGEAI / PERSONAL STUDIO</span><span className="eyebrow-line" /></div><h1>Your AI generation <em>workspace.</em></h1><p>Bring your own API keys. Choose your model. Generate without being locked into a single AI platform.</p><div className="landing-actions"><button className="primary-button" onClick={() => openView('generate')}><Sparkles size={16} /> Open workspace</button><button className="outline-button" onClick={() => openView('keys')}><KeyRound size={15} /> Configure API keys</button></div><div className="landing-note"><ShieldCheck size={15} /><span>Server-side provider requests · verified NVIDIA NIM adapters</span></div></div><div className="landing-visual"><div className="landing-visual-top"><span>VISUAL WORKSPACE PREVIEW</span><span className="preview-live"><i /> READY</span></div><div className="landing-frame"><div className="landing-rings" /><div className="landing-frame-center"><div className="preview-mark"><Sparkles size={20} /></div><strong>Make something worth seeing.</strong><span>Prompt in. Your frame out.</span></div><span className="landing-axis axis-x">X / OUTPUT</span><span className="landing-axis axis-y">Y / INPUT</span></div><div className="landing-visual-foot"><span><Layers3 size={14} /> 03 verified models</span><span><Zap size={14} /> 01 provider live</span></div></div></div>;
-
-  const renderGenerate = () => <div className="workspace-grid">
-    <section className="composer-column">
-      <div className="eyebrow-row"><span className="eyebrow">CREATE</span><span className="eyebrow-line" /><span className="muted micro">NVIDIA NIM · IMAGE GENERATION</span></div>
-      <div className="page-heading"><h1>Make something <em>worth seeing.</em></h1><p>Bring your own API key. Choose a model. Keep the creative loop yours.</p></div>
-      <div className="composer-card panel">
-        <div className="composer-top"><div className="input-label"><WandSparkles size={15} /> PROMPT</div><span className="counter">{prompt.length.toLocaleString()} / 10,000</span></div>
-        <textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder={starterPrompt} maxLength={10000} />
-        <div className="composer-bottom"><div className="composer-tools"><button className={cx('subtle-button', enhance && 'subtle-button-active')} onClick={() => setEnhance(!enhance)}><Sparkles size={14} /> Enhance prompt <span className={cx('toggle', enhance && 'toggle-on')}><span /></span></button><button className={cx('subtle-button', reference && 'subtle-button-active')} onClick={() => fileInputRef.current?.click()}><ImagePlus size={14} /> Reference {reference && <Check size={13} />}</button><input ref={fileInputRef} type="file" accept="image/*" className="sr-only" onChange={(event) => handleFile(event.target.files?.[0])} /></div><button className="clear-button" onClick={() => { setPrompt(''); setReference(undefined); }}>Clear</button></div>
-        {reference && <div className="reference-preview"><img src={reference} alt="Reference preview" /><span>Reference image attached</span><button onClick={() => setReference(undefined)}><X size={14} /></button></div>}
-      </div>
-      <div className="generation-controls panel">
-        <div className="control-header"><div><span className="input-label"><SlidersIcon /> GENERATION CONTROLS</span><p>Options adapt to the selected model.</p></div><div className="connected-pill"><span /> {keyStatus === 'connected' ? 'NVIDIA connected' : 'API key required'}</div></div>
-        <div className="control-grid"><SelectField label="Provider" value="NVIDIA NIM" options={['NVIDIA NIM']} onChange={() => {}} /><SelectField label="Model" value={model.name} options={MODEL_REGISTRY.filter((item) => item.category === 'Image').map((item) => item.name)} onChange={(value) => { const selected = MODEL_REGISTRY.find((item) => item.name === value); if (selected) updateSettings({ model: selected.id, steps: selected.steps.default, cfgScale: selected.cfgScale?.default }); }} /><SelectField label="Aspect ratio" value={settings.ratio} options={model.ratios} onChange={(value) => updateSettings({ ratio: value })} /><SelectField label="Resolution" value={settings.resolution} options={model.resolutions} onChange={(value) => updateSettings({ resolution: value })} /><SelectField label="Images" value={String(settings.images)} options={['1']} onChange={(value) => updateSettings({ images: Number(value) })} /><label className="control-field"><span>Seed</span><div className="seed-field"><input type="number" min="0" max="4294967295" value={settings.seed} onChange={(event) => updateSettings({ seed: Number(event.target.value) })} /><button onClick={() => updateSettings({ seed: 0 })}>Random</button></div></label></div>
-        <button className="advanced-toggle" onClick={() => setShowAdvanced(!showAdvanced)}><span><Settings2 size={14} /> Advanced settings</span><ChevronDown size={14} className={cx('chevron', showAdvanced && 'chevron-open')} /></button>
-        <AnimatePresence>{showAdvanced && <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="advanced-content"><label className="range-field"><span>Steps <b>{settings.steps}</b></span><input type="range" min={model.steps.min} max={model.steps.max} value={settings.steps} onChange={(event) => updateSettings({ steps: Number(event.target.value) })} /></label>{model.cfgScale && model.cfgScale.max > 0 && <label className="range-field"><span>Guidance <b>{settings.cfgScale}</b></span><input type="range" min={model.cfgScale.min} max={model.cfgScale.max} step="0.5" value={settings.cfgScale} onChange={(event) => updateSettings({ cfgScale: Number(event.target.value) })} /></label>}<p className="technical-note">Model-aware parameters are sent only when supported by NVIDIA’s verified API schema.</p></motion.div>}</AnimatePresence>
-      </div>
-      <div className="composer-footer"><span className="keyboard-note"><kbd>⌘</kbd><kbd>↵</kbd> Generate</span><button className="primary-button generate-button" onClick={() => void generate()} disabled={isGenerating}>{isGenerating ? <><LoaderCircle size={17} className="spin" /> {queueLabel[queueState]}…</> : <><Zap size={17} /> Generate image</>}</button></div>
-      {(queueState !== 'idle' || result) && <div className="queue-status"><div className={cx('queue-dot', queueState === 'failed' && 'queue-dot-error', queueState === 'completed' && 'queue-dot-success')} /><div><strong>{queueLabel[queueState]}</strong><span>{queueState === 'failed' ? 'Check your NVIDIA key and model settings, then try again.' : queueState === 'completed' ? 'Saved to your generation history.' : 'Live status · progress is indeterminate while NVIDIA processes the request.'}</span></div>{queueState === 'failed' && <button className="text-button" onClick={() => setQueueState('idle')}>Dismiss</button>}</div>}
-    </section>
-    <section className="result-column"><div className="result-heading"><div><span className="eyebrow">OUTPUT</span><h2>{result ? 'Freshly forged.' : 'Visual canvas'}</h2></div>{result && <div className="result-actions"><IconButton label="Download" onClick={() => downloadRecord(result)}><Download size={16} /></IconButton><IconButton label="Use prompt" onClick={() => setPrompt(result.prompt)}><Pencil size={16} /></IconButton></div>}</div>{result ? <motion.div initial={{ opacity: 0, scale: .98 }} animate={{ opacity: 1, scale: 1 }} className="result-card"><button className="result-image-button" onClick={() => setSelectedRecord(result)}><img src={result.image} alt={result.prompt} /></button><div className="result-meta"><div><span className="muted micro">{getModel(result.model).name} · NVIDIA NIM</span><p>{result.prompt}</p></div><span className="result-time">{(result.durationMs / 1000).toFixed(1)}s</span></div></motion.div> : <EmptyPreview />}<div className="result-footnote"><span><ShieldCheck size={14} /> Keys never leave the server.</span><span><Clock3 size={14} /> History is saved locally for this workspace.</span></div></section>
-  </div>;
-
-  const renderHistory = () => <div className="page-section"><div className="section-heading"><div><span className="eyebrow">ARCHIVE</span><h1>Generation history.</h1><p>Every frame you make, in one private timeline.</p></div><div className="search-box"><Search size={15} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search prompts or models" /></div></div>{filteredHistory.length ? <div className="history-grid">{filteredHistory.map((item) => <GenerationCard key={item.id} item={item} onOpen={() => setSelectedRecord(item)} onDelete={() => { const next = history.filter((record) => record.id !== item.id); setHistory(next); localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); toast.success('Removed from history'); }} onDownload={() => downloadRecord(item)} onRegenerate={() => { setPrompt(item.prompt); updateSettings({ model: item.model, ratio: item.ratio, resolution: item.resolution, seed: item.seed }); openView('generate'); }} />)}</div> : <div className="empty-state"><div className="empty-icon"><Images size={21} /></div><h3>{search ? 'No matching generations' : 'Your archive is empty'}</h3><p>{search ? 'Try another prompt or model name.' : 'Once you generate an image, it will appear here with its settings and source prompt.'}</p>{!search && <button className="primary-button" onClick={() => openView('generate')}><Plus size={16} /> Start creating</button>}</div>}</div>;
-
-  const renderModels = () => <div className="page-section"><div className="section-heading"><div><span className="eyebrow">MODEL REGISTRY</span><h1>Choose your engine.</h1><p>Verified provider adapters, with capabilities kept in one place.</p></div><a className="docs-link" href="https://docs.api.nvidia.com/nim" target="_blank" rel="noreferrer">NVIDIA docs <ArrowUpRight size={14} /></a></div><div className="filter-row"><div className="filter-tabs">{(['All', 'Image', 'Text', 'Vision', 'Video'] as const).map((filter) => <button key={filter} className={cx(modelFilter === filter && 'filter-active')} onClick={() => setModelFilter(filter)}>{filter}</button>)}</div><div className="provider-filter"><span>Provider</span>{['all', 'nvidia'].map((provider) => <button key={provider} className={cx(selectedModel === provider && 'provider-active')} onClick={() => setSelectedModel(provider)}>{provider === 'all' ? 'All' : 'NVIDIA'}</button>)}</div></div><div className="models-grid">{filteredModels.map((item) => <motion.article layout key={item.id} className="model-card"><div className="model-card-top"><div className="model-symbol">{item.name.startsWith('FLUX.2') ? '02' : item.name.includes('Kontext') ? 'K' : '01'}</div><span className="available-dot"><span /> Available</span></div><div className="model-card-copy"><span className="muted micro">{item.eyebrow}</span><h3>{item.name}</h3><p>{item.description}</p></div><div className="capability-row">{item.capabilities.map((capability) => <span key={capability}>{capability}</span>)}</div><div className="model-card-footer"><span className="muted micro">{item.category} · {item.steps.min}–{item.steps.max} steps</span><button className="outline-button" onClick={() => { updateSettings({ model: item.id, steps: item.steps.default, cfgScale: item.cfgScale?.default, ratio: item.ratios[0], resolution: item.resolutions[0] }); openView('generate'); }}>Use model <ArrowUpRight size={14} /></button></div></motion.article>)}</div></div>;
-
-  const renderKeys = () => <div className="page-section narrow-section"><div className="section-heading"><div><span className="eyebrow">CONNECTIONS</span><h1>Bring your own keys.</h1><p>Encrypted server-side storage for provider credentials. ForgeAI never puts a saved key in the browser bundle.</p></div></div><div className="key-card panel"><div className="key-card-header"><div className="provider-logo">N</div><div><h2>NVIDIA NIM</h2><p>Image generation and editing</p></div><span className={cx('status-pill', keyStatus === 'connected' && 'status-connected')}>{keyStatus === 'connected' ? <><span /> Connected</> : <><span /> Not connected</>}</span></div><div className="key-divider" /><div className="key-input-label">API key <span>Stored only on the server</span></div><div className="secret-input"><KeyRound size={16} /><input type={showKey ? 'text' : 'password'} value={apiKey} onChange={(event) => setApiKey(event.target.value)} placeholder={keyStatus === 'connected' ? '••••••••••••••••••••••••' : 'nvapi-…'} /><button onClick={() => setShowKey(!showKey)}>{showKey ? 'Hide' : 'Show'}</button></div><div className="key-actions"><button className="primary-button" onClick={() => void saveKey()} disabled={!apiKey.trim() || keyStatus === 'saving'}>{keyStatus === 'saving' ? <><LoaderCircle size={16} className="spin" /> Saving…</> : <><ShieldCheck size={16} /> Save key</>}</button><button className="outline-button" onClick={() => void testKey()} disabled={keyStatus === 'testing'}><FlaskConical size={15} /> {keyStatus === 'testing' ? 'Testing…' : 'Test connection'}</button>{keyStatus === 'connected' && <button className="danger-button" onClick={() => void removeKey()}><Trash2 size={15} /> Remove</button>}</div>{keyMessage && <div className={cx('key-message', keyStatus === 'missing' && 'key-message-error')}>{keyStatus === 'connected' ? <CheckCircle2 size={15} /> : <CircleHelp size={15} />}{keyMessage}</div>}<p className="security-note"><ShieldCheck size={14} /> Your key is used by server-side provider requests only. It is never returned in full after saving.</p></div><div className="coming-card"><div className="coming-icon"><Plus size={18} /></div><div><strong>Add another provider later</strong><p>OpenAI, Google, Replicate, and OpenRouter can plug into the same adapter contract.</p></div><span>Planned</span></div></div>;
-
-  const renderSettings = () => <div className="page-section narrow-section"><div className="section-heading"><div><span className="eyebrow">PREFERENCES</span><h1>Make it yours.</h1><p>Small defaults that keep your creative loop moving.</p></div></div><div className="settings-stack"><div className="settings-card panel"><div className="settings-row"><div><strong>Appearance</strong><p>ForgeAI uses a dark-first canvas for image work.</p></div><div className="segmented"><button className="segment-active"><Moon size={14} /> Dark</button><button disabled><Monitor size={14} /> System</button></div></div><div className="settings-row"><div><strong>Default provider</strong><p>Used whenever you open the composer.</p></div><span className="setting-value"><span className="provider-mini">N</span>NVIDIA NIM</span></div><div className="settings-row"><div><strong>Default model</strong><p>Change this from the model registry or composer.</p></div><span className="setting-value">{getModel(settings.model).name}</span></div><div className="settings-row"><div><strong>Default canvas</strong><p>Initial aspect ratio and resolution.</p></div><span className="setting-value">{settings.ratio} · {settings.resolution}</span></div></div><div className="usage-card panel"><div className="usage-icon"><Zap size={18} /></div><div><span className="eyebrow">USAGE & LIMITS</span><h2>Your provider sets the terms.</h2><p>Pricing, rate limits, availability, and any usage quotas are determined by NVIDIA and your account. ForgeAI does not claim unlimited or permanently free generation.</p><a href="https://build.nvidia.com/" target="_blank" rel="noreferrer">Review NVIDIA account limits <ArrowUpRight size={14} /></a></div></div><div className="settings-card panel"><div className="settings-row"><div><strong>Account</strong><p>{session ? 'Signed in with Supabase authentication.' : 'Connect Supabase to enable account-scoped history and settings.'}</p></div><span className={cx('account-status', session && 'account-status-on')}><span />{session ? 'Authenticated' : 'Not connected'}</span></div></div></div></div>;
-
-  return <div className="app-shell"><Toaster theme="dark" position="bottom-right" toastOptions={{ style: { background: '#171817', border: '1px solid #33352f', color: '#f4f2eb' } }} />
-    <aside className={cx('sidebar', mobileNavOpen && 'sidebar-open')}><div className="sidebar-top"><AppLogo onClick={() => openView('landing')} /><button className="mobile-close" onClick={() => setMobileNavOpen(false)}><X size={18} /></button></div><div className="workspace-switcher"><div className="workspace-avatar">A</div><div><strong>Personal workspace</strong><span>Private · local history</span></div><ChevronDown size={15} /></div><nav className="main-nav"><span className="nav-section-label">WORKSPACE</span><NavItem icon={<Sparkles size={17} />} label="Generate" active={view === 'generate'} onClick={() => openView('generate')} /><NavItem icon={<Images size={17} />} label="History" active={view === 'history'} onClick={() => openView('history')} badge={history.length ? String(history.length) : undefined} /><NavItem icon={<Layers3 size={17} />} label="Models" active={view === 'models'} onClick={() => openView('models')} /><span className="nav-section-label nav-section-lower">CONFIGURE</span><NavItem icon={<KeyRound size={17} />} label="API keys" active={view === 'keys'} onClick={() => openView('keys')} badge={keyStatus === 'connected' ? '1' : undefined} /><NavItem icon={<Settings2 size={17} />} label="Settings" active={view === 'settings'} onClick={() => openView('settings')} /></nav><div className="sidebar-bottom"><div className="status-card"><div className="status-card-top"><span className="status-led" /> SYSTEM READY</div><p>Provider requests stay server-side.</p><button onClick={() => openView('keys')}>{keyStatus === 'connected' ? 'Manage connection' : 'Connect NVIDIA'} <ArrowUpRight size={13} /></button></div><div className="sidebar-user"><div className="user-avatar"><UserRound size={15} /></div><div><strong>{session ? 'Authenticated user' : 'Local workspace'}</strong><span>{session ? 'Supabase account' : 'Preview until sign-in'}</span></div><MoreHorizontal size={16} /></div></div></aside>
-    <main className="main-content"><header className="topbar"><button className="mobile-menu" onClick={() => setMobileNavOpen(true)}><Menu size={20} /></button><div className="topbar-context"><span className="context-dot" /> {view === 'landing' ? 'ForgeAI overview' : view === 'generate' ? 'Image generation' : view[0].toUpperCase() + view.slice(1)}</div><div className="topbar-actions"><span className="build-label">FORGEAI / 0.1</span><button className="help-button"><CircleHelp size={16} /> <span>Help</span></button>{session ? <button className="avatar-button"><UserRound size={15} /></button> : <button className="sign-in-button" onClick={() => setShowAuth(true)}>Sign in</button>}</div></header><div className="page-content"><AnimatePresence mode="wait"><motion.div key={view} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .2 }}>{view === 'landing' && renderLanding()}{view === 'generate' && renderGenerate()}{view === 'history' && renderHistory()}{view === 'models' && renderModels()}{view === 'keys' && renderKeys()}{view === 'settings' && renderSettings()}</motion.div></AnimatePresence></div></main>
-    {showAuth && <AuthModal auth={auth} setAuth={setAuth} onClose={() => setShowAuth(false)} onSuccess={() => supabase.auth.getSession().then(({ data }) => setSession(data.session))} />}
-    {selectedRecord && <div className="viewer-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setSelectedRecord(null)}><motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="viewer"><button className="modal-close" onClick={() => setSelectedRecord(null)}><X size={18} /></button><div className="viewer-image"><img src={selectedRecord.image} alt={selectedRecord.prompt} /></div><div className="viewer-info"><span className="eyebrow">GENERATION DETAIL</span><h2>{getModel(selectedRecord.model).name}</h2><p className="viewer-prompt">{selectedRecord.prompt}</p><div className="viewer-details"><span><b>Provider</b>NVIDIA NIM</span><span><b>Resolution</b>{selectedRecord.resolution}</span><span><b>Seed</b>{selectedRecord.seed || 'Random'}</span><span><b>Created</b>{new Date(selectedRecord.createdAt).toLocaleString()}</span></div><div className="viewer-actions"><button className="primary-button" onClick={() => { setPrompt(selectedRecord.prompt); setSelectedRecord(null); openView('generate'); }}><Pencil size={15} /> Use this prompt</button><button className="outline-button" onClick={() => downloadRecord(selectedRecord)}><Download size={15} /> Download</button></div></div></motion.div></div>}
+  return <div className="tars-shell">
+    <aside className="sidebar">
+      <div className="brand"><div className="brand-mark"><span>T</span></div><div><strong>TARS</strong><small>autonomous computer agent</small></div></div>
+      <div className="host-badge"><span className="live-dot" /> WINDOWS HOST <span className="host-sep">/</span> LOCAL CONTROL</div>
+      <nav className="nav"><span className="nav-caption">OPERATIONS</span>{nav.slice(0, 3).map((item) => <button key={item.id} className={cx('nav-item', view === item.id && 'active')} onClick={() => setView(item.id)}>{item.icon}<span>{item.label}</span>{item.id === 'tasks' && tasks.length > 0 && <b>{tasks.length}</b>}</button>)}<span className="nav-caption lower">CONFIGURE</span>{nav.slice(3).map((item) => <button key={item.id} className={cx('nav-item', view === item.id && 'active')} onClick={() => setView(item.id)}>{item.icon}<span>{item.label}</span></button>)}</nav>
+      <div className="sidebar-footer"><div className="safety-card"><div><ShieldCheck size={15} /> SAFETY LAYER</div><p>Host actions are permission-gated and audit logged.</p><button onClick={() => setView('settings')}>Review controls <ChevronRight size={13} /></button></div><div className="agent-identity"><div className="agent-avatar"><Bot size={16} /></div><div><strong>TARS host agent</strong><small>{stopped ? 'Emergency stopped' : desktopAvailable ? 'Ready for objectives' : 'Desktop host unavailable'}</small></div></div></div>
+    </aside>
+    <main className="main"><header className="topbar"><div className="crumb"><span className="crumb-dot" /> TARS / {nav.find((item) => item.id === view)?.label.toUpperCase()}</div><div className="top-actions"><span className={cx('provider-status', activeProvider?.hasKey && 'online')}><i /> {activeProvider?.hasKey ? `${activeProvider.id} connected` : 'AI provider not configured'}</span>{stopped ? <button className="resume-button" onClick={() => { void window.tars.resume(); setStopped(false); }}><Play size={14} /> Resume</button> : <button className="stop-button" onClick={() => { void window.tars.stop(); setStopped(true); }}><Square size={13} fill="currentColor" /> STOP TARS</button>}</div></header>
+      {!desktopAvailable && <div className="unavailable-banner"><AlertTriangle size={17} /><div><strong>Desktop host bridge unavailable</strong><span>Run TARS through the Electron desktop build to enable real Windows control. The UI will not simulate host actions.</span></div></div>}
+      <div className="content">{view === 'command' && <CommandView objective={objective} setObjective={setObjective} startTask={startTask} busy={busy} activeTask={activeTask} screen={screen} stopped={stopped} />}{view === 'tasks' && <TasksView tasks={tasks} selectedTask={selectedTask} selectTask={setSelectedTask} cancelTask={(id) => void window.tars.cancelTask(id)} />}{view === 'activity' && <ActivityView events={events} />}{view === 'providers' && <ProvidersView providers={providers} refresh={() => window.tars.providers().then(setProviders)} />}{view === 'health' && <HealthView health={health} refresh={refreshHealth} />}{view === 'settings' && <SettingsView settings={settings} update={updateSetting} paths={desktopAvailable ? window.tars.paths : undefined} />}</div>
+    </main>
+    {permissions[0] && <PermissionModal request={permissions[0]} onDecision={(decision) => void respond(permissions[0], decision)} />}
   </div>;
 }
 
-function SlidersIcon() { return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 6h16M4 12h16M4 18h16" /><circle cx="9" cy="6" r="2" fill="currentColor" stroke="none" /><circle cx="15" cy="12" r="2" fill="currentColor" stroke="none" /><circle cx="10" cy="18" r="2" fill="currentColor" stroke="none" /></svg>; }
+function CommandView({ objective, setObjective, startTask, busy, activeTask, screen, stopped }: { objective: string; setObjective: (value: string) => void; startTask: () => Promise<void>; busy: boolean; activeTask?: TarsTask; screen: any; stopped: boolean }) {
+  return <div className="command-layout"><section className="command-column"><div className="section-kicker">COMMAND CENTER <span /> AUTONOMOUS EXECUTION</div><h1>Give TARS an <em>objective.</em></h1><p className="lede">TARS plans the work, operates the real Windows host through permissioned tools, observes the result, recovers from failure, and verifies completion.</p><div className="objective-card"><div className="card-label"><Zap size={15} /> OBJECTIVE</div><textarea value={objective} onChange={(event) => setObjective(event.target.value)} onKeyDown={(event) => { if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') { event.preventDefault(); void startTask(); } }} placeholder={'Open Notepad and type Hello TARS.\n\nOr describe a multi-step objective such as: research, compare, create a report in Documents, and open it.'} disabled={stopped} /><div className="objective-footer"><span><kbd>Ctrl</kbd><kbd>Enter</kbd> to run</span><button className="primary-button" onClick={() => void startTask()} disabled={busy || !objective.trim() || stopped}>{busy ? <><RefreshCw size={15} className="spin" /> Starting…</> : <><Play size={15} fill="currentColor" /> Start objective</>}</button></div></div><div className="principles"><div><ShieldCheck size={15} /><span><strong>Permission-aware</strong>Risky actions pause for your decision.</span></div><div><Activity size={15} /><span><strong>Observable</strong>Every action is logged without chain-of-thought.</span></div><div><Lock size={15} /><span><strong>Provider-independent</strong>API fallback prevents one-provider lock-in.</span></div></div></section><section className="monitor-column"><div className="panel-heading"><div><span className="section-kicker">LIVE COMPUTER VIEW</span><h2>{activeTask ? activeTask.currentStep : 'Host observation'}</h2></div><span className={cx('live-pill', stopped && 'stopped')}><i /> {stopped ? 'STOPPED' : 'LIVE'}</span></div><div className="screen-panel">{screen?.imageDataUrl ? <img src={screen.imageDataUrl} alt="Current Windows host screen" /> : <div className="screen-empty"><Monitor size={28} /><strong>No host screenshot yet</strong><span>Start an objective or run the system check to observe the Windows desktop.</span></div>}<div className="screen-overlay"><span>{screen?.activeWindow?.process || 'HOST'}{screen?.activeWindow?.title ? ` / ${screen.activeWindow.title}` : ''}</span><span>{screen?.width ? `${screen.width} × ${screen.height}` : 'SCREEN FEED'}</span></div></div>{activeTask ? <TaskProgress task={activeTask} /> : <div className="first-run-card"><div className="first-run-icon"><Cpu size={18} /></div><div><strong>Ready for autonomous work</strong><p>Real computer control, browser automation, filesystem and PowerShell tools are available through the host agent.</p></div></div>}</section></div>;
+}
+
+function TaskProgress({ task }: { task: TarsTask }) { return <div className="task-progress"><div className="task-progress-head"><div><span className="section-kicker">CURRENT TASK</span><h3>{task.objective}</h3></div><span className={cx('status-badge', statusColor(task.status))}>{task.status.replaceAll('_', ' ')}</span></div><div className="progress-track"><span style={{ width: `${task.progress}%` }} /></div><div className="progress-meta"><span>{task.progress}% · {task.currentStep}</span><span>{task.stats.actions} actions · {task.stats.failures} failures</span></div><div className="steps">{task.steps.slice(0, 8).map((step) => <div key={step.id} className={cx('step', step.status)}><span>{step.status === 'completed' ? '✓' : step.status === 'running' ? '→' : step.status === 'failed' ? '×' : '·'}</span>{step.title}</div>)}</div></div>; }
+
+function TasksView({ tasks, selectedTask, selectTask, cancelTask }: { tasks: TarsTask[]; selectedTask?: string; selectTask: (id: string) => void; cancelTask: (id: string) => void }) { return <Page title="Tasks" kicker="TASK QUEUE" description="Every objective has a bounded execution loop, cancellation state, evidence, and audit history."><div className="task-list">{tasks.length ? tasks.map((task) => <button key={task.id} className={cx('task-row', selectedTask === task.id && 'selected')} onClick={() => selectTask(task.id)}><div className={cx('status-orb', statusColor(task.status))} /><div className="task-row-main"><strong>{task.objective}</strong><span>{task.currentStep}</span></div><span className="task-row-status">{task.status.replaceAll('_', ' ')}</span><span className="task-row-time">{time(task.createdAt)}</span>{!['COMPLETED', 'FAILED', 'CANCELLED'].includes(task.status) && <span className="task-row-cancel" onClick={(event) => { event.stopPropagation(); cancelTask(task.id); }}><Square size={12} /></span>}</button>) : <Empty icon={<Bot size={19} />} title="No objectives yet" copy="Start with a high-level objective in the command center." />}</div>{tasks.find((task) => task.id === selectedTask) && <TaskDetail task={tasks.find((task) => task.id === selectedTask)!} />}</Page>; }
+function TaskDetail({ task }: { task: TarsTask }) { return <div className="detail-card"><div className="detail-head"><div><span className="section-kicker">TASK DETAIL</span><h2>{task.objective}</h2></div><span className={cx('status-badge', statusColor(task.status))}>{task.status}</span></div><div className="detail-grid"><span><b>Created</b>{new Date(task.createdAt).toLocaleString()}</span><span><b>Duration</b>{(task.stats.durationMs / 1000).toFixed(1)}s</span><span><b>Actions</b>{task.stats.actions}</span><span><b>Failures</b>{task.stats.failures}</span><span><b>Retries</b>{task.stats.retries}</span><span><b>Artifacts</b>{task.artifacts.length}</span></div>{task.error && <div className="error-box"><AlertTriangle size={14} />{task.error}</div>}</div>; }
+
+function ActivityView({ events }: { events: ActionEvent[] }) { return <Page title="Activity log" kicker="OBSERVABILITY" description="Concise action, observation, decision, verification, permission, and error events. Secrets are redacted before storage."><div className="log-toolbar"><span><Activity size={15} /> {events.length} recent events</span><span><FileText size={14} /> JSONL audit log on host</span></div><div className="event-list">{events.length ? [...events].reverse().map((event) => <div className="event-row" key={event.id}><span className={cx('event-kind', event.kind.toLowerCase())}>{event.kind}</span><div className="event-message"><strong>{event.message}</strong><span>{event.tool || event.metadata?.operation || 'TARS'}{event.taskId ? ` · ${event.taskId.slice(0, 8)}` : ''}</span></div><span className="event-time">{time(event.timestamp)}</span>{event.durationMs !== undefined && <span className="event-duration">{event.durationMs}ms</span>}</div>) : <Empty icon={<Activity size={19} />} title="No events yet" copy="TARS will record activity as soon as an objective begins." />}</div></Page>; }
+
+function ProvidersView({ providers, refresh }: { providers: ProviderStatus[]; refresh: () => void }) { const [selected, setSelected] = useState(providers[0]?.id || 'openai'); const [key, setKey] = useState(''); const [baseUrl, setBaseUrl] = useState(''); const [model, setModel] = useState(''); const [saving, setSaving] = useState(false); const current = providers.find((p) => p.id === selected);
+  useEffect(() => { if (current) { setBaseUrl(current.baseUrl); setModel(current.model); } }, [selected, current?.baseUrl, current?.model]);
+  async function save() { setSaving(true); try { await window.tars.saveProvider({ id: selected, label: current?.label || selected, baseUrl, model, enabled: true, ...(key ? { apiKey: key } : {}) }); setKey(''); refresh(); } finally { setSaving(false); } }
+  return <Page title="AI providers" kicker="MODEL ROUTING" description="Configure API-based models. Keys are encrypted in local app storage and never returned to the renderer after saving."><div className="provider-layout"><div className="provider-list">{providers.map((provider) => <button key={provider.id} className={cx('provider-row', provider.id === selected && 'selected')} onClick={() => setSelected(provider.id)}><div className="provider-glyph">{provider.id.slice(0, 1).toUpperCase()}</div><div><strong>{provider.label}</strong><span>{provider.baseUrl}</span></div><i className={provider.hasKey ? 'connected' : ''} /></button>)}</div><div className="provider-editor panel"><div className="editor-head"><div><span className="section-kicker">PROVIDER CONFIGURATION</span><h2>{current?.label || selected}</h2></div><span className={cx('status-badge', current?.hasKey ? 'green' : 'amber')}>{current?.hasKey ? 'CONNECTED' : 'KEY REQUIRED'}</span></div><label>Base URL<input value={baseUrl} onChange={(event) => setBaseUrl(event.target.value)} placeholder="https://api.openai.com/v1" /></label><label>Model<input value={model} onChange={(event) => setModel(event.target.value)} placeholder="gpt-5-mini" /></label><label>API key <small>Leave blank to keep the stored key</small><input type="password" value={key} onChange={(event) => setKey(event.target.value)} placeholder={current?.hasKey ? 'Stored securely · enter a new key to rotate' : 'Paste provider API key'} /></label><div className="editor-actions"><button className="primary-button" onClick={() => void save()} disabled={saving || !baseUrl || !model}>{saving ? <><RefreshCw size={14} className="spin" /> Saving…</> : <><Lock size={14} /> Save securely</>}</button><button className="outline-button" onClick={() => window.tars.testProvider(selected)}><Zap size={14} /> Test connection</button></div><p className="security-foot"><ShieldCheck size={14} /> API calls are made by the host process, not frontend code. Configure a fallback provider in Settings.</p></div></div></Page>; }
+
+function HealthView({ health, refresh }: { health: any; refresh: () => Promise<void> }) { return <Page title="System check" kicker="DIAGNOSTICS" description="Run live capability checks against the connected host. Unavailable features are reported honestly and never simulated."><div className="health-header"><div className={cx('ready-card', health?.ready && 'ready')}><div className="ready-icon">{health?.ready ? <Check size={21} /> : <AlertTriangle size={21} />}</div><div><strong>{health ? health.ready ? 'SYSTEM READY' : 'ACTION REQUIRED' : 'CHECK NOT RUN'}</strong><span>{health ? 'Results reflect the current host and provider configuration.' : 'Run the diagnostic suite before starting your first objective.'}</span></div></div><button className="primary-button" onClick={() => void refresh()}><RefreshCw size={15} /> Run system check</button></div><div className="health-grid">{health?.checks?.map((check: any) => <div className="health-row" key={check.name}><span className={cx('health-icon', check.status)}>{check.status === 'pass' ? <Check size={14} /> : check.status === 'unavailable' ? <CircleHelp size={14} /> : <AlertTriangle size={14} />}</span><div><strong>{check.name}</strong><span>{check.detail}</span></div><small>{check.durationMs}ms</small></div>) || <Empty icon={<ShieldCheck size={19} />} title="Diagnostics are ready" copy="The check covers provider authentication, native input, screen capture, filesystem, terminal, browser, sandbox, and permissions." />}</div></Page>; }
+
+function SettingsView({ settings, update, paths }: { settings: TarsSettings | null; update: (patch: Partial<TarsSettings>) => Promise<void>; paths?: () => Promise<any> }) { const [pathInfo, setPathInfo] = useState<any>(null); useEffect(() => { if (paths) void paths().then(setPathInfo); }, [paths]); return <Page title="Settings" kicker="SAFETY & CONTROL" description="Tune the execution boundary. Defaults are conservative; high-risk actions always require explicit confirmation."><div className="settings-list">{settings && <><SettingToggle label="Auto-approve low-risk actions" detail="Open apps, read files, screenshots, and navigation can proceed without pausing." value={settings.autoApproveLowRisk} onChange={(value) => void update({ autoApproveLowRisk: value })} /><SettingToggle label="Allow medium-risk actions" detail="Writes, downloads, installs, unfamiliar scripts, and system changes still show a confirmation unless enabled." value={settings.allowMediumRisk} onChange={(value) => void update({ allowMediumRisk: value })} /><SettingToggle label="Capture after GUI actions" detail="Adds a real screenshot observation after computer, application, and browser actions." value={settings.screenshotAfterActions} onChange={(value) => void update({ screenshotAfterActions: value })} /><SettingToggle label="Persistent memory" detail="Keep short user preferences locally. Secrets and credentials are never written to memory." value={settings.persistentMemoryEnabled} onChange={(value) => void update({ persistentMemoryEnabled: value })} /><label className="setting-input">Primary provider<select value={settings.primaryProviderId} onChange={(event) => void update({ primaryProviderId: event.target.value })}><option value="openai">OpenAI-compatible / OpenAI</option><option value="anthropic">Anthropic-compatible</option><option value="google">Google-compatible</option></select></label><label className="setting-input">Fallback provider<select value={settings.fallbackProviderId || ''} onChange={(event) => void update({ fallbackProviderId: event.target.value || undefined })}><option value="">No fallback</option><option value="openai">OpenAI-compatible / OpenAI</option><option value="anthropic">Anthropic-compatible</option><option value="google">Google-compatible</option></select></label><label className="setting-input">Primary model<select value={settings.primaryModel} onChange={(event) => void update({ primaryModel: event.target.value })}><option>gpt-5-mini</option><option>gpt-5</option><option>claude-sonnet-4-6</option><option>gemini-3-flash-preview</option></select></label><label className="setting-input">Maximum agent steps<input type="number" min="1" max="200" value={settings.maxSteps} onChange={(event) => void update({ maxSteps: Number(event.target.value) })} /></label><label className="setting-input">Emergency shortcut<input value={settings.keyboardShortcut} onChange={(event) => void update({ keyboardShortcut: event.target.value })} /></label></>}{pathInfo && <div className="paths-card"><Folder size={16} /><div><strong>Local state</strong><span>{pathInfo.root}</span><small>Audit log: {pathInfo.logPath}</small></div></div>}</div></Page>; }
+function SettingToggle({ label, detail, value, onChange }: { label: string; detail: string; value: boolean; onChange: (value: boolean) => void }) { return <div className="setting-row"><div><strong>{label}</strong><p>{detail}</p></div><button className={cx('toggle', value && 'on')} onClick={() => onChange(!value)}><span /></button></div>; }
+function PermissionModal({ request, onDecision }: { request: PermissionRequest; onDecision: (decision: 'allow-once' | 'allow-task' | 'deny') => void }) { return <div className="modal-backdrop"><div className="permission-modal"><div className="permission-top"><div className="permission-icon"><AlertTriangle size={19} /></div><div><span className="section-kicker">ACTION REQUESTED</span><h2>TARS needs your decision</h2></div><span className={cx('status-badge', request.risk === 'HIGH' ? 'red' : 'amber')}>{request.risk} RISK</span></div><div className="permission-fields"><div><b>ACTION</b><span>{request.action}</span></div><div><b>TARGET</b><span>{request.target}</span></div><div><b>REASON</b><span>{request.reason}</span></div></div><div className="permission-actions"><button className="danger-button" onClick={() => onDecision('deny')}><X size={14} /> Deny</button><button className="outline-button" onClick={() => onDecision('allow-once')}><Check size={14} /> Allow once</button>{request.risk !== 'HIGH' && <button className="primary-button" onClick={() => onDecision('allow-task')}><Check size={14} /> Allow for task</button>}</div></div></div>; }
+function Page({ title, kicker, description, children }: { title: string; kicker: string; description: string; children: React.ReactNode }) { return <div className="page"><div className="page-heading"><div><span className="section-kicker">{kicker}</span><h1>{title}</h1><p>{description}</p></div></div>{children}</div>; }
+function Empty({ icon, title, copy }: { icon: React.ReactNode; title: string; copy: string }) { return <div className="empty"><div>{icon}</div><strong>{title}</strong><span>{copy}</span></div>; }
